@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronRight, Cuboid,Phone, Video } from "lucide-react";
+import { ChevronRight, Package, Phone, Video } from "lucide-react";
 import React, { useState } from "react";
 
 import { cn } from "@/lib/cn";
@@ -19,28 +19,16 @@ function getInitials(title: string) {
 
 function getServiceIcon(title: string) {
   const t = title.toLowerCase();
-  if (t.includes("3d design") || t.includes("3d")) return <Cuboid className="size-6 text-white" />;
-  if (t.includes("video") || t.includes("google meet") || t.includes("zoom")) return <Video className="size-6 text-white" />;
-  if (t.includes("call") || t.includes("consultation")) return <Phone className="size-6 text-white" />;
-  return <span className="text-sm font-semibold text-white">{getInitials(title)}</span>;
+  if (t.includes("3d design") || t.includes("3d")) return <Package className="size-6 text-foreground" />;
+  if (t.includes("video") || t.includes("google meet") || t.includes("zoom")) return <Video className="size-6 text-foreground" />;
+  if (t.includes("call") || t.includes("consultation")) return (
+    <Phone className="size-6 text-foreground animate-[ring_1.2s_ease-in-out_infinite]" />
+  );
+  return <span className="text-sm font-semibold text-foreground">{getInitials(title)}</span>;
 }
 
 function getLogoColor(title: string) {
-  const colors = [
-    "bg-blue-600",
-    "bg-violet-600",
-    "bg-emerald-600",
-    "bg-amber-600",
-    "bg-rose-600",
-    "bg-cyan-600",
-    "bg-indigo-600",
-    "bg-teal-600",
-  ];
-  let hash = 0;
-  for (let i = 0; i < title.length; i++) {
-    hash = title.charCodeAt(i) + ((hash << 5) - hash);
-  }
-  return colors[Math.abs(hash) % colors.length];
+  return "bg-muted";
 }
 
 
@@ -48,14 +36,24 @@ export function ServiceItem({ service }: { service: Service }) {
   const [imgError, setImgError] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
 
+  const is3DDesign = service.title.toLowerCase().includes("3d design");
+  const fallbackAmount = service.title.toLowerCase().includes("ar shagun") ? 999 : service.title.toLowerCase().includes("google meet") ? 1999 : 0;
+  const displayAmount = is3DDesign ? 0 : (service.amount > 0 ? service.amount : fallbackAmount);
+
   const content = (
-    <button
-      onClick={() => setDialogOpen(true)}
-      className={cn(
-        "w-full text-left group flex items-center gap-4 rounded-xl border border-border/50 p-4",
-        "transition-all duration-200 hover:border-border hover:bg-accent/50 cursor-pointer"
+    <div className="relative">
+      {displayAmount > 0 && (
+        <span className="absolute -top-2.5 right-3 z-10 rounded-full bg-emerald-500 px-2.5 py-0.5 text-[10px] font-bold text-white shadow-sm tracking-wide">
+          ₹{displayAmount.toLocaleString("en-IN")}
+        </span>
       )}
-    >
+      <button
+        onClick={() => setDialogOpen(true)}
+        className={cn(
+          "w-full text-left group flex items-center gap-4 rounded-xl border border-border/50 p-4",
+          "transition-all duration-200 hover:border-border hover:bg-accent/50 cursor-pointer"
+        )}
+      >
       {/* Image / Logo */}
       <div
         className={cn(
@@ -80,11 +78,11 @@ export function ServiceItem({ service }: { service: Service }) {
 
       {/* Content */}
       <div className="min-w-0 flex-1">
-        <p className="line-clamp-2 text-sm font-medium text-foreground">
+        <p className="text-sm font-medium text-foreground">
           {service.title}
         </p>
         {service.description && (
-          <p className="mt-1 line-clamp-3 text-xs text-muted-foreground whitespace-normal">
+          <p className="mt-1 text-xs text-muted-foreground whitespace-normal">
             {service.description}
           </p>
         )}
@@ -94,7 +92,8 @@ export function ServiceItem({ service }: { service: Service }) {
       {/* Chevron */}
       <ChevronRight className="size-5 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
     </button>
-  );
+  </div>
+);
 
   return (
     <>

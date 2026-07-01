@@ -19,7 +19,7 @@ export function SectionsGrid({
   designsContent,
   booksContent,
 }: SectionsGridProps) {
-  const [activeSection, setActiveSection] = useState<Section>(null);
+  const [activeSection, setActiveSection] = useState<Section>("consultation");
   const containerRef = useRef<HTMLDivElement>(null);
 
   const toggleSection = (section: Section) => {
@@ -51,7 +51,7 @@ export function SectionsGrid({
         >
           <Phone
             className={cn(
-              "size-6 sm:size-8 transition-transform group-hover:scale-110",
+              "size-6 sm:size-8 transition-transform group-hover:scale-110 animate-[ring_1.2s_ease-in-out_infinite]",
               activeSection === "consultation"
                 ? "text-primary-foreground"
                 : "text-muted-foreground"

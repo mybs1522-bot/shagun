@@ -43,7 +43,7 @@ export function QuickActions() {
                     if (servicesEl) servicesEl.scrollIntoView({ behavior: "smooth" });
                   }
                 }}>
-                  <Phone />
+                  <Phone className="animate-[ring_1.2s_ease-in-out_infinite]" />
                   <span>Book Consultation</span>
                 </Button>
 

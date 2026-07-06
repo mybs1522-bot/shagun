@@ -159,12 +159,15 @@ export function ServiceDialog({
 
     if (isPaymentRequired) {
       setSubmitting(true);
+      const leadId = crypto.randomUUID();
       try {
-        // Save the lead immediately before payment (No .select() to avoid RLS read blocking)
+        // Save the lead immediately before payment as 'pending'
         await supabase.from("service_leads").insert({
+          id: leadId,
           name: finalName,
           phone: fullPhone,
           service_id: service.id,
+          payment_status: 'pending'
         });
 
         const res = await fetch("/api/razorpay", {
@@ -186,12 +189,14 @@ export function ServiceDialog({
           handler: async function (response: any) {
             const nameWithPayment = `${finalName} (TXN: ${response.razorpay_payment_id})`;
             
-            // Insert a new confirmed record rather than updating, to bypass RLS update restrictions
-            const { error } = await supabase.from("service_leads").insert({
-              name: nameWithPayment,
-              phone: fullPhone,
-              service_id: service.id,
-            });
+            // Update the existing record to 'completed'
+            const { error } = await supabase
+              .from("service_leads")
+              .update({ 
+                name: nameWithPayment,
+                payment_status: 'completed'
+              })
+              .eq("id", leadId);
 
             if (error) {
               toast.error("Payment successful, but failed to save entry.");

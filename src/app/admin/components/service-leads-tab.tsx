@@ -21,6 +21,7 @@ type ServiceLead = {
   name: string;
   phone: string;
   service_id: string;
+  payment_status: string | null;
   created_at: string;
   services: Pick<Service, "title"> | null;
 };
@@ -75,6 +76,7 @@ export function ServiceLeadsTab() {
               <TableHead>Name</TableHead>
               <TableHead>Phone</TableHead>
               <TableHead>Requested Service</TableHead>
+              <TableHead>Payment</TableHead>
               <TableHead className="text-right">Date</TableHead>
             </TableRow>
           </TableHeader>
@@ -90,6 +92,19 @@ export function ServiceLeadsTab() {
                     </span>
                   ) : (
                     <span className="text-muted-foreground italic">Deleted Service</span>
+                  )}
+                </TableCell>
+                <TableCell>
+                  {lead.payment_status === "completed" ? (
+                    <span className="inline-flex items-center rounded-md bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700 ring-1 ring-inset ring-emerald-700/10 dark:bg-emerald-900/30 dark:text-emerald-400 dark:ring-emerald-400/20">
+                      Completed
+                    </span>
+                  ) : lead.payment_status === "pending" ? (
+                    <span className="inline-flex items-center rounded-md bg-amber-50 px-2 py-1 text-xs font-medium text-amber-700 ring-1 ring-inset ring-amber-700/10 dark:bg-amber-900/30 dark:text-amber-400 dark:ring-amber-400/20">
+                      Pending
+                    </span>
+                  ) : (
+                    <span className="text-muted-foreground italic text-xs">-</span>
                   )}
                 </TableCell>
                 <TableCell className="text-right text-muted-foreground text-sm">

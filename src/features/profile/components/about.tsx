@@ -12,7 +12,7 @@ export function About() {
       </PanelHeader>
 
       <PanelContent>
-        <Prose>
+        <Prose className="prose-p:text-[13px] prose-p:leading-snug sm:prose-p:text-sm sm:prose-p:leading-normal">
           <Markdown>{USER.about}</Markdown>
         </Prose>
       </PanelContent>

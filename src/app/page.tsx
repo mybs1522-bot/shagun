@@ -13,7 +13,7 @@ import { Header } from "@/features/profile/components/header";
 import { Projects } from "@/features/profile/components/projects";
 import { QuickActions } from "@/features/profile/components/quick-actions";
 import { Reviews } from "@/features/profile/components/reviews";
-
+import { SectionsGrid } from "@/features/profile/components/sections-grid";
 import { Services } from "@/features/profile/components/services";
 import { StickyHeader } from "@/features/profile/components/sticky-header";
 import { cn } from "@/lib/cn";
@@ -45,10 +45,10 @@ export default async function Page() {
             <Services />
             <Pattern />
 
-            <Projects />
-            <Pattern />
-
-            <BooksSection />
+            <SectionsGrid 
+              designsContent={<Projects />}
+              booksContent={<BooksSection />}
+            />
             <Pattern />
 
             <Reviews />

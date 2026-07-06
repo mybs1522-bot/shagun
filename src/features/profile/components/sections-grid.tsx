@@ -7,19 +7,17 @@ import { useRef,useState } from "react";
 import { cn } from "@/lib/cn";
 
 interface SectionsGridProps {
-  consultationContent: React.ReactNode;
   designsContent: React.ReactNode;
   booksContent: React.ReactNode;
 }
 
-type Section = "consultation" | "designs" | "books" | null;
+type Section = "designs" | "books" | null;
 
 export function SectionsGrid({
-  consultationContent,
   designsContent,
   booksContent,
 }: SectionsGridProps) {
-  const [activeSection, setActiveSection] = useState<Section>("consultation");
+  const [activeSection, setActiveSection] = useState<Section>("designs");
   const containerRef = useRef<HTMLDivElement>(null);
 
   const toggleSection = (section: Section) => {
@@ -39,26 +37,7 @@ export function SectionsGrid({
 
   return (
     <div ref={containerRef} className="flex w-full flex-col gap-6 scroll-mt-20">
-      <div className="grid grid-cols-3 gap-4">
-        <button
-          onClick={() => toggleSection("consultation")}
-          className={cn(
-            "group flex aspect-square flex-col items-center justify-center gap-2 rounded-2xl border-2 transition-all duration-200",
-            activeSection === "consultation"
-              ? "border-primary bg-primary text-primary-foreground shadow-none translate-y-[4px]"
-              : "border-border border-b-[6px] bg-card hover:-translate-y-[2px] hover:border-b-[8px] active:border-b-2 active:translate-y-[4px]"
-          )}
-        >
-          <Phone
-            className={cn(
-              "size-6 sm:size-8 transition-transform group-hover:scale-110 animate-[ring_1.2s_ease-in-out_infinite]",
-              activeSection === "consultation"
-                ? "text-primary-foreground"
-                : "text-muted-foreground"
-            )}
-          />
-          <span className="text-xs font-bold sm:text-sm">Consultation</span>
-        </button>
+      <div className="grid grid-cols-2 gap-4">
 
         <button
           onClick={() => toggleSection("designs")}
@@ -112,7 +91,6 @@ export function SectionsGrid({
             className="overflow-hidden"
           >
             <div className="pt-2">
-              {activeSection === "consultation" && consultationContent}
               {activeSection === "designs" && designsContent}
               {activeSection === "books" && booksContent}
             </div>

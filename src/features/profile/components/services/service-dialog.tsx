@@ -170,6 +170,20 @@ export function ServiceDialog({
           payment_status: 'pending'
         });
 
+        // Send email notification for new lead
+        fetch("/api/notify-lead", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: finalName,
+            phone: fullPhone,
+            serviceName: service.title,
+            paymentStatus: "pending",
+            date: selectedDate?.format("MMM D, YYYY") || null,
+            time: selectedTime || null,
+          }),
+        }).catch(console.error);
+
         const res = await fetch("/api/razorpay", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -202,6 +216,19 @@ export function ServiceDialog({
               toast.error("Payment successful, but failed to save entry.");
               console.error(error);
             } else {
+              // Send email notification for completed payment
+              fetch("/api/notify-lead", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  name: nameWithPayment,
+                  phone: fullPhone,
+                  serviceName: service.title,
+                  paymentStatus: "completed",
+                  date: selectedDate?.format("MMM D, YYYY") || null,
+                  time: selectedTime || null,
+                }),
+              }).catch(console.error);
               toast.success("Payment successful! Request received.");
               onClose();
             }
@@ -241,6 +268,19 @@ export function ServiceDialog({
         toast.error("An error occurred. Please try again.");
         console.error(error);
       } else {
+        // Send email notification for non-payment lead
+        fetch("/api/notify-lead", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: finalName,
+            phone: fullPhone,
+            serviceName: service.title,
+            paymentStatus: "none",
+            date: selectedDate?.format("MMM D, YYYY") || null,
+            time: selectedTime || null,
+          }),
+        }).catch(console.error);
         toast.success("Request received! Our support team will contact you shortly.");
         onClose();
       }

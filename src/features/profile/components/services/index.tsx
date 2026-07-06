@@ -43,8 +43,8 @@ export async function Services() {
       <div className="p-4">
         {Object.entries(grouped).map(([category, items], groupIndex) => (
           <div key={category} className={groupIndex > 0 ? "mt-6" : ""}>
-            <p className="mb-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-              {category}
+            <p className="mb-3 text-sm font-bold uppercase tracking-wider text-foreground">
+              {category === "Consultation Call" ? "Book Consultation Call" : category}
             </p>
             <div className="space-y-3">
               {items.map((service) => (

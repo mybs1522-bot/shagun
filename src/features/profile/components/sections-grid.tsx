@@ -17,7 +17,7 @@ export function SectionsGrid({
   designsContent,
   booksContent,
 }: SectionsGridProps) {
-  const [activeSection, setActiveSection] = useState<Section>("designs");
+  const [activeSection, setActiveSection] = useState<Section>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
   const toggleSection = (section: Section) => {
@@ -37,12 +37,12 @@ export function SectionsGrid({
 
   return (
     <div ref={containerRef} className="flex w-full flex-col gap-6 scroll-mt-20">
-      <div className="grid grid-cols-2 gap-4">
+      <div className="flex justify-center gap-4 sm:gap-6">
 
         <button
           onClick={() => toggleSection("designs")}
           className={cn(
-            "group flex aspect-square flex-col items-center justify-center gap-2 rounded-2xl border-2 transition-all duration-200",
+            "group flex aspect-square w-32 sm:w-36 flex-col items-center justify-center gap-2 rounded-2xl border-2 transition-all duration-200",
             activeSection === "designs"
               ? "border-primary bg-primary text-primary-foreground shadow-none translate-y-[4px]"
               : "border-border border-b-[6px] bg-card hover:-translate-y-[2px] hover:border-b-[8px] active:border-b-2 active:translate-y-[4px]"
@@ -62,7 +62,7 @@ export function SectionsGrid({
         <button
           onClick={() => toggleSection("books")}
           className={cn(
-            "group flex aspect-square flex-col items-center justify-center gap-2 rounded-2xl border-2 transition-all duration-200",
+            "group flex aspect-square w-32 sm:w-36 flex-col items-center justify-center gap-2 rounded-2xl border-2 transition-all duration-200",
             activeSection === "books"
               ? "border-primary bg-primary text-primary-foreground shadow-none translate-y-[4px]"
               : "border-border border-b-[6px] bg-card hover:-translate-y-[2px] hover:border-b-[8px] active:border-b-2 active:translate-y-[4px]"

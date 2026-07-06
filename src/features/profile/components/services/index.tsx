@@ -40,10 +40,6 @@ export async function Services() {
 
   return (
     <Panel id="services" className="scroll-mt-22">
-      <PanelHeader>
-        <PanelTitle>Book Consultation</PanelTitle>
-      </PanelHeader>
-
       <div className="p-4">
         {Object.entries(grouped).map(([category, items], groupIndex) => (
           <div key={category} className={groupIndex > 0 ? "mt-6" : ""}>

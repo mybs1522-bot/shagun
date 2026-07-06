@@ -1,3 +1,4 @@
+import { Phone } from "lucide-react";
 import React from "react";
 
 import { supabase } from "@/lib/supabase";
@@ -43,8 +44,15 @@ export async function Services() {
       <div className="p-4">
         {Object.entries(grouped).map(([category, items], groupIndex) => (
           <div key={category} className={groupIndex > 0 ? "mt-6" : ""}>
-            <p className="mb-3 text-sm font-bold uppercase tracking-wider text-foreground">
-              {category === "Consultation Call" ? "Book Consultation Call" : category}
+            <p className="mb-4 flex items-center gap-2 text-base font-bold uppercase tracking-wider text-foreground">
+              {(category === "Consultation Call" || category === "Book Consultation Call") ? (
+                <>
+                  <Phone className="size-4" />
+                  Book Consultation Call
+                </>
+              ) : (
+                category
+              )}
             </p>
             <div className="space-y-3">
               {items.map((service) => (

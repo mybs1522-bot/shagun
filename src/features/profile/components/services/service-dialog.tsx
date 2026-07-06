@@ -159,22 +159,13 @@ export function ServiceDialog({
 
     if (isPaymentRequired) {
       setSubmitting(true);
-      let leadId: string | null = null;
       try {
-        // Save the lead immediately before payment
-        const { data: leadData, error: leadError } = await supabase
-          .from("service_leads")
-          .insert({
-            name: finalName,
-            phone: fullPhone,
-            service_id: service.id,
-          })
-          .select()
-          .single();
-
-        if (!leadError && leadData) {
-          leadId = leadData.id;
-        }
+        // Save the lead immediately before payment (No .select() to avoid RLS read blocking)
+        await supabase.from("service_leads").insert({
+          name: finalName,
+          phone: fullPhone,
+          service_id: service.id,
+        });
 
         const res = await fetch("/api/razorpay", {
           method: "POST",
@@ -195,25 +186,16 @@ export function ServiceDialog({
           handler: async function (response: any) {
             const nameWithPayment = `${finalName} (TXN: ${response.razorpay_payment_id})`;
             
-            let updateError = null;
-            if (leadId) {
-              const { error } = await supabase
-                .from("service_leads")
-                .update({ name: nameWithPayment })
-                .eq("id", leadId);
-              updateError = error;
-            } else {
-              const { error } = await supabase.from("service_leads").insert({
-                name: nameWithPayment,
-                phone: fullPhone,
-                service_id: service.id,
-              });
-              updateError = error;
-            }
+            // Insert a new confirmed record rather than updating, to bypass RLS update restrictions
+            const { error } = await supabase.from("service_leads").insert({
+              name: nameWithPayment,
+              phone: fullPhone,
+              service_id: service.id,
+            });
 
-            if (updateError) {
-              toast.error("Payment successful, but failed to update entry.");
-              console.error(updateError);
+            if (error) {
+              toast.error("Payment successful, but failed to save entry.");
+              console.error(error);
             } else {
               toast.success("Payment successful! Request received.");
               onClose();

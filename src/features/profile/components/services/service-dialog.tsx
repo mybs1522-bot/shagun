@@ -326,11 +326,17 @@ export function ServiceDialog({
               "Choose an available slot for your consultation."
             ) : (
               <>
-                Enter your details below to request{" "}
-                <span className="font-semibold text-foreground">
-                  {service?.title}
-                </span>
-                .
+                {titleLower.includes("3d design") ? (
+                  <>Enter your details below to request call for <span className="font-semibold text-foreground">3D Design Discussion</span>.</>
+                ) : (
+                  <>
+                    Enter your details below to request{" "}
+                    <span className="font-semibold text-foreground">
+                      {service?.title}
+                    </span>
+                    .
+                  </>
+                )}
                 {service?.description && (
                   <p className="mt-2 text-sm font-medium text-emerald-600 dark:text-emerald-400 whitespace-normal">
                     💡 {service.description}

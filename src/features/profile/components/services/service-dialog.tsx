@@ -85,14 +85,14 @@ export function ServiceDialog({
   const titleLower = service?.title.toLowerCase() || "";
   const categoryLower = service?.category.toLowerCase() || "";
   const isConsultation =
-    !titleLower.includes("3d design") &&
-    !titleLower.includes("floor plan") &&
     (titleLower.includes("consultation") ||
       titleLower.includes("call") ||
       titleLower.includes("google meet") ||
       titleLower.includes("zoom") ||
       titleLower.includes("video") ||
       titleLower.includes("meet") ||
+      titleLower.includes("3d design") ||
+      titleLower.includes("floor plan") ||
       categoryLower.includes("consultation"));
 
   const [step, setStep] = useState<1 | 2>(1);

@@ -86,6 +86,7 @@ export function ServiceDialog({
   const categoryLower = service?.category.toLowerCase() || "";
   const isConsultation =
     !titleLower.includes("3d design") &&
+    !titleLower.includes("floor plan") &&
     (titleLower.includes("consultation") ||
       titleLower.includes("call") ||
       titleLower.includes("google meet") ||
@@ -155,7 +156,7 @@ export function ServiceDialog({
       finalName = `${name.trim()} (Appt: ${selectedDate.format("MMM D")} at ${selectedTime})`;
     }
 
-    const isPaymentRequired = service.amount > 0 && !titleLower.includes("3d design");
+    const isPaymentRequired = service.amount > 0;
 
     if (isPaymentRequired) {
       setSubmitting(true);
@@ -314,8 +315,10 @@ export function ServiceDialog({
               {step === 1 && isConsultation
                 ? "Select Date & Time"
                 : titleLower.includes("3d design")
-                  ? "Need 3D Design"
-                  : "Book A Call"}
+                  ? "3D Design for Interiors & Exteriors"
+                  : titleLower.includes("floor plan")
+                    ? "Floor Plan Design"
+                    : "Book A Call"}
             </DialogTitle>
           </div>
           <DialogDescription className="text-center">
@@ -328,9 +331,9 @@ export function ServiceDialog({
                   {service?.title}
                 </span>
                 .
-                {service?.description && !isConsultation && (
-                  <p className="mt-2 text-sm text-muted-foreground whitespace-normal">
-                    {service.description}
+                {service?.description && (
+                  <p className="mt-2 text-sm font-medium text-emerald-600 dark:text-emerald-400 whitespace-normal">
+                    💡 {service.description}
                   </p>
                 )}
               </>

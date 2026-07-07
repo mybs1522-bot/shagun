@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronRight, Package, Phone, Video } from "lucide-react";
+import { ChevronRight, LayoutPanelTop, Package, Phone, Video } from "lucide-react";
 import React, { useState } from "react";
 
 import { cn } from "@/lib/cn";
@@ -19,6 +19,7 @@ function getInitials(title: string) {
 
 function getServiceIcon(title: string) {
   const t = title.toLowerCase();
+  if (t.includes("floor plan")) return <LayoutPanelTop className="size-6 text-foreground" />;
   if (t.includes("3d design") || t.includes("3d")) return <Package className="size-6 text-foreground" />;
   if (t.includes("video") || t.includes("google meet") || t.includes("zoom")) return <Video className="size-6 text-foreground" />;
   if (t.includes("call") || t.includes("consultation")) return (
@@ -36,9 +37,8 @@ export function ServiceItem({ service }: { service: Service }) {
   const [imgError, setImgError] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
 
-  const is3DDesign = service.title.toLowerCase().includes("3d design");
   const fallbackAmount = service.title.toLowerCase().includes("ar shagun") ? 999 : service.title.toLowerCase().includes("google meet") ? 1999 : 0;
-  const displayAmount = is3DDesign ? 0 : (service.amount > 0 ? service.amount : fallbackAmount);
+  const displayAmount = service.amount > 0 ? service.amount : fallbackAmount;
 
   const content = (
     <div className="relative">

@@ -22,6 +22,7 @@ type ServiceLead = {
   phone: string;
   service_id: string;
   payment_status: string | null;
+  paid_at: string | null;
   created_at: string;
   services: Pick<Service, "title"> | null;
 };
@@ -77,6 +78,7 @@ export function ServiceLeadsTab() {
               <TableHead>Phone</TableHead>
               <TableHead>Requested Service</TableHead>
               <TableHead>Payment</TableHead>
+              <TableHead>Paid At</TableHead>
               <TableHead className="text-right">Date</TableHead>
             </TableRow>
           </TableHeader>
@@ -106,6 +108,9 @@ export function ServiceLeadsTab() {
                   ) : (
                     <span className="text-muted-foreground italic text-xs">-</span>
                   )}
+                </TableCell>
+                <TableCell className="text-muted-foreground text-xs">
+                  {lead.paid_at ? dayjs(lead.paid_at).format("MMM D, h:mm A") : <span className="italic">—</span>}
                 </TableCell>
                 <TableCell className="text-right text-muted-foreground text-sm">
                   {dayjs(lead.created_at).format("MMM D, YYYY h:mm A")}

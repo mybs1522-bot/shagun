@@ -209,7 +209,8 @@ export function ServiceDialog({
               .from("service_leads")
               .update({ 
                 name: nameWithPayment,
-                payment_status: 'completed'
+                payment_status: 'completed',
+                paid_at: new Date().toISOString()
               })
               .eq("id", leadId);
 
@@ -328,6 +329,8 @@ export function ServiceDialog({
               <>
                 {titleLower.includes("3d design") ? (
                   <>Enter your details below to request call for <span className="font-semibold text-foreground">3D Design Discussion</span>.</>
+                ) : titleLower.includes("floor plan") ? (
+                  <>Enter your details below to request call for <span className="font-semibold text-foreground">Floor Plan Design Discussion</span>.</>
                 ) : (
                   <>
                     Enter your details below to request{" "}
@@ -338,7 +341,7 @@ export function ServiceDialog({
                   </>
                 )}
                 {service?.description && (
-                  <p className="mt-2 text-sm font-medium text-emerald-600 dark:text-emerald-400 whitespace-normal">
+                  <p className="mt-1 text-[11px] sm:text-sm font-medium text-emerald-600 dark:text-emerald-400 whitespace-normal">
                     💡 {service.description}
                   </p>
                 )}

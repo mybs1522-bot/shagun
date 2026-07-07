@@ -43,7 +43,7 @@ export function ServiceItem({ service }: { service: Service }) {
   const content = (
     <div className="relative">
       {displayAmount > 0 && (
-        <span className="absolute -top-2.5 right-3 z-10 rounded-full bg-emerald-500 px-2.5 py-0.5 text-[10px] font-bold text-white shadow-sm tracking-wide">
+        <span className="absolute -top-3 right-3 z-10 rounded-full bg-emerald-500 px-3 py-1 text-xs font-bold text-white shadow-md tracking-wide">
           ₹{displayAmount.toLocaleString("en-IN")}
         </span>
       )}

@@ -1,5 +1,7 @@
 "use client";
 
+// Thank You Page Component for Bookings
+
 import { CheckCircle2, Calendar, Clock, ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";

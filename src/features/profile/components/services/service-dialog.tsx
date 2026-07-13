@@ -103,6 +103,20 @@ export function ServiceDialog({
           if (error) throw error;
 
           const slots: Record<string, string[]> = {};
+
+          // Seed 2-3 random slots for today and tomorrow
+          const todayStr = dayjs().format("YYYY-MM-DD");
+          const tomorrowStr = dayjs().add(1, "day").format("YYYY-MM-DD");
+
+          const getRandomSlots = () => {
+            const shuffled = [...availableTimes].sort(() => 0.5 - Math.random());
+            const count = Math.floor(Math.random() * 2) + 2; // 2 or 3
+            return shuffled.slice(0, count);
+          };
+
+          slots[todayStr] = getRandomSlots();
+          slots[tomorrowStr] = getRandomSlots();
+
           data.forEach((lead: any) => {
             const dateStr = lead.appointment_date;
             const timeStr = lead.appointment_time;

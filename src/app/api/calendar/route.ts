@@ -2,14 +2,23 @@ import { google } from "googleapis";
 import { NextRequest, NextResponse } from "next/server";
 
 function getCalendarClient() {
-  const rawKey = process.env.GOOGLE_CALENDAR_PRIVATE_KEY || "";
-  // Handle both literal \n (from .env files) and already-parsed newlines
+  let rawKey = (process.env.GOOGLE_CALENDAR_PRIVATE_KEY || "").trim();
+  
+  if (rawKey.startsWith('"') && rawKey.endsWith('"')) {
+    rawKey = rawKey.substring(1, rawKey.length - 1);
+  }
+
   const privateKey = rawKey.includes("\\n")
     ? rawKey.split("\\n").join("\n")
     : rawKey;
 
+  let clientEmail = (process.env.GOOGLE_CALENDAR_CLIENT_EMAIL || "").trim();
+  if (clientEmail.startsWith('"') && clientEmail.endsWith('"')) {
+    clientEmail = clientEmail.substring(1, clientEmail.length - 1);
+  }
+
   const auth = new google.auth.JWT({
-    email: process.env.GOOGLE_CALENDAR_CLIENT_EMAIL,
+    email: clientEmail,
     key: privateKey,
     scopes: ["https://www.googleapis.com/auth/calendar"],
   });
@@ -29,7 +38,10 @@ export async function POST(req: NextRequest) {
     }
 
     const calendar = getCalendarClient();
-    const calendarId = process.env.GOOGLE_CALENDAR_ID;
+    let calendarId = (process.env.GOOGLE_CALENDAR_ID || "").trim();
+    if (calendarId.startsWith('"') && calendarId.endsWith('"')) {
+      calendarId = calendarId.substring(1, calendarId.length - 1);
+    }
 
     // Parse the date and time into a proper DateTime
     // date comes as "Jul 8, 2026" and time as "11:00 AM"

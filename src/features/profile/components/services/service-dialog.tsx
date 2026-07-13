@@ -293,6 +293,7 @@ export function ServiceDialog({
               }
               toast.success("Payment successful! Request received.");
               onClose();
+              window.location.href = `/thank-you?date=${selectedDate ? selectedDate.format("YYYY-MM-DD") : ""}&time=${selectedTime || ""}`;
             }
           },
           prefill: {
@@ -361,6 +362,7 @@ export function ServiceDialog({
         }
         toast.success("Request received! Our support team will contact you shortly.");
         onClose();
+        window.location.href = `/thank-you?date=${selectedDate ? selectedDate.format("YYYY-MM-DD") : ""}&time=${selectedTime || ""}`;
       }
     }
   };

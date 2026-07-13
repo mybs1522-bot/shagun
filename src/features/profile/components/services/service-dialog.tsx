@@ -43,17 +43,7 @@ const availableTimes = [
   "07:00 PM",
 ];
 
-// Slots that are already booked (keyed by YYYY-MM-DD)
-const bookedSlots: Record<string, string[]> = {
-  [dayjs().format("YYYY-MM-DD")]: ["11:00 AM", "02:00 PM", "04:00 PM"],
-  [dayjs().add(1, "day").format("YYYY-MM-DD")]: ["10:00 AM", "03:00 PM"],
-};
 
-function isSlotBooked(date: dayjs.Dayjs | null, time: string): boolean {
-  if (!date) return false;
-  const key = date.format("YYYY-MM-DD");
-  return bookedSlots[key]?.includes(time) ?? false;
-}
 
 function isSlotPassed(date: dayjs.Dayjs | null, timeStr: string): boolean {
   if (!date) return false;
@@ -98,6 +88,46 @@ export function ServiceDialog({
   const [step, setStep] = useState<1 | 2>(1);
   const [selectedDate, setSelectedDate] = useState<dayjs.Dayjs | null>(null);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
+  const [dynamicBookedSlots, setDynamicBookedSlots] = useState<Record<string, string[]>>({});
+
+  useEffect(() => {
+    if (open) {
+      const fetchBookedSlots = async () => {
+        try {
+          const { data, error } = await supabase
+            .from("service_leads")
+            .select("appointment_date, appointment_time")
+            .not("appointment_date", "is", null)
+            .not("appointment_time", "is", null);
+
+          if (error) throw error;
+
+          const slots: Record<string, string[]> = {};
+          data.forEach((lead: any) => {
+            const dateStr = lead.appointment_date;
+            const timeStr = lead.appointment_time;
+            if (!slots[dateStr]) {
+              slots[dateStr] = [];
+            }
+            if (!slots[dateStr].includes(timeStr)) {
+              slots[dateStr].push(timeStr);
+            }
+          });
+          setDynamicBookedSlots(slots);
+        } catch (err) {
+          console.error("Error fetching booked slots:", err);
+        }
+      };
+
+      fetchBookedSlots();
+    }
+  }, [open]);
+
+  const isSlotBooked = (date: dayjs.Dayjs | null, time: string): boolean => {
+    if (!date) return false;
+    const key = date.format("YYYY-MM-DD");
+    return dynamicBookedSlots[key]?.includes(time) ?? false;
+  };
 
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -168,7 +198,9 @@ export function ServiceDialog({
           name: finalName,
           phone: fullPhone,
           service_id: service.id,
-          payment_status: 'pending'
+          payment_status: 'pending',
+          appointment_date: selectedDate ? selectedDate.format("YYYY-MM-DD") : null,
+          appointment_time: selectedTime
         });
 
         // Send email notification for new lead
@@ -277,6 +309,8 @@ export function ServiceDialog({
         name: finalName,
         phone: fullPhone,
         service_id: service.id,
+        appointment_date: selectedDate ? selectedDate.format("YYYY-MM-DD") : null,
+        appointment_time: selectedTime
       });
       setSubmitting(false);
 
@@ -350,15 +384,15 @@ export function ServiceDialog({
                     : "Book A Call"}
             </DialogTitle>
           </div>
-          <DialogDescription className="text-center">
+          <DialogDescription className="text-center text-[10px] xs:text-xs sm:text-sm px-1">
             {step === 1 && isConsultation ? (
               "Choose an available slot for your consultation."
             ) : (
               <>
                 {titleLower.includes("3d design") ? (
-                  <>Enter your details below to request call for <span className="font-semibold text-foreground">3D Design Discussion</span>.</>
+                  <span className="block max-sm:whitespace-nowrap max-sm:overflow-hidden max-sm:text-ellipsis">Enter your details below to request call for <span className="font-semibold text-foreground">3D Design Discussion</span>.</span>
                 ) : titleLower.includes("floor plan") ? (
-                  <>Enter your details below to request call for <span className="font-semibold text-foreground">Floor Plan Design Discussion</span>.</>
+                  <span className="block max-sm:whitespace-nowrap max-sm:overflow-hidden max-sm:text-ellipsis">Enter your details below to request call for <span className="font-semibold text-foreground">Floor Plan Design</span>.</span>
                 ) : (
                   <>
                     Enter your details below to request{" "}
@@ -369,7 +403,7 @@ export function ServiceDialog({
                   </>
                 )}
                 {service?.description && (
-                  <span className="mt-1 block text-[11px] sm:text-sm font-medium text-emerald-600 dark:text-emerald-400 whitespace-normal">
+                  <span className="mt-1 block text-[10px] xs:text-[11px] sm:text-sm font-medium text-emerald-600 dark:text-emerald-400 whitespace-normal max-sm:whitespace-nowrap max-sm:overflow-hidden max-sm:text-ellipsis">
                     💡 {service.description}
                   </span>
                 )}

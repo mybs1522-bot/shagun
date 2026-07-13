@@ -2,17 +2,17 @@ import { google } from "googleapis";
 import { NextRequest, NextResponse } from "next/server";
 
 function getCalendarClient() {
-  const privateKey = (process.env.GOOGLE_CALENDAR_PRIVATE_KEY || "").replace(
-    /\\n/g,
-    "\n"
-  );
+  const rawKey = process.env.GOOGLE_CALENDAR_PRIVATE_KEY || "";
+  // Handle both literal \n (from .env files) and already-parsed newlines
+  const privateKey = rawKey.includes("\\n")
+    ? rawKey.split("\\n").join("\n")
+    : rawKey;
 
-  const auth = new google.auth.JWT(
-    process.env.GOOGLE_CALENDAR_CLIENT_EMAIL,
-    undefined,
-    privateKey,
-    ["https://www.googleapis.com/auth/calendar"]
-  );
+  const auth = new google.auth.JWT({
+    email: process.env.GOOGLE_CALENDAR_CLIENT_EMAIL,
+    key: privateKey,
+    scopes: ["https://www.googleapis.com/auth/calendar"],
+  });
 
   return google.calendar({ version: "v3", auth });
 }

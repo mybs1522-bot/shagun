@@ -231,6 +231,20 @@ export function ServiceDialog({
                   time: selectedTime || null,
                 }),
               }).catch(console.error);
+              // Add to Google Calendar
+              if (selectedDate && selectedTime) {
+                fetch("/api/calendar", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    name: finalName,
+                    phone: fullPhone,
+                    serviceName: service.title,
+                    date: selectedDate.format("MMM D, YYYY"),
+                    time: selectedTime,
+                  }),
+                }).catch(console.error);
+              }
               toast.success("Payment successful! Request received.");
               onClose();
             }
@@ -283,6 +297,20 @@ export function ServiceDialog({
             time: selectedTime || null,
           }),
         }).catch(console.error);
+        // Add to Google Calendar
+        if (selectedDate && selectedTime) {
+          fetch("/api/calendar", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              name: finalName,
+              phone: fullPhone,
+              serviceName: service.title,
+              date: selectedDate.format("MMM D, YYYY"),
+              time: selectedTime,
+            }),
+          }).catch(console.error);
+        }
         toast.success("Request received! Our support team will contact you shortly.");
         onClose();
       }
@@ -341,9 +369,9 @@ export function ServiceDialog({
                   </>
                 )}
                 {service?.description && (
-                  <p className="mt-1 text-[11px] sm:text-sm font-medium text-emerald-600 dark:text-emerald-400 whitespace-normal">
+                  <span className="mt-1 block text-[11px] sm:text-sm font-medium text-emerald-600 dark:text-emerald-400 whitespace-normal">
                     💡 {service.description}
-                  </p>
+                  </span>
                 )}
               </>
             )}

@@ -1,46 +1,54 @@
 import { NextRequest, NextResponse } from "next/server";
 export const dynamic = "force-dynamic";
-// Force a fresh Vercel build to pick up new environment variables
 
-export async function GET(req: NextRequest) {
-  // Check every possible env var name for the Google Calendar key
-  const checks: Record<string, boolean> = {};
-  const possibleKeys = [
-    "GOOGLE_CALENDAR_PRIVATE_KEY",
-    "GOOGLE_CALENDAR_CLIENT_EMAIL", 
-    "GOOGLE_CALENDAR_ID",
-    "NEXT_PUBLIC_GOOGLE_CALENDAR_PRIVATE_KEY",
-    "NEXT_PUBLIC_GOOGLE_CALENDAR_CLIENT_EMAIL",
-    "NEXT_PUBLIC_GOOGLE_CALENDAR_ID",
-    "VITE_GOOGLE_CALENDAR_PRIVATE_KEY",
-    "RAZORPAY_KEY_ID",
-    "RAZORPAY_KEY_SECRET",
-    "NEXT_PUBLIC_RAZORPAY_KEY_ID",
-    "NEXT_PUBLIC_SUPABASE_URL",
-    "NEXT_PUBLIC_SUPABASE_ANON_KEY",
-    "SUPABASE_SERVICE_ROLE_KEY",
-    "VITE_SUPABASE_SERVICE_ROLE_KEY",
-    "GMAIL_USER",
-  ];
+function getCalendarClient() {
+  let rawKey = (process.env.GOOGLE_CALENDAR_PRIVATE_KEY || "").trim();
+  if (rawKey.startsWith('"') && rawKey.endsWith('"')) {
+    rawKey = rawKey.substring(1, rawKey.length - 1);
+  }
+  const privateKey = rawKey.includes("\\n")
+    ? rawKey.split("\\n").join("\n")
+    : rawKey;
 
-  for (const key of possibleKeys) {
-    const val = process.env[key];
-    checks[key] = !!val;
-    if (val && key.includes("PRIVATE_KEY")) {
-      checks[key + "_length"] = val.length as any;
-      checks[key + "_starts"] = val.substring(0, 20) as any;
-    }
+  let clientEmail = (process.env.GOOGLE_CALENDAR_CLIENT_EMAIL || "").trim();
+  if (clientEmail.startsWith('"') && clientEmail.endsWith('"')) {
+    clientEmail = clientEmail.substring(1, clientEmail.length - 1);
   }
 
-  // Also list ALL env var keys (names only, no values) that contain GOOGLE or CALENDAR
-  const allEnvKeys = Object.keys(process.env).filter(
-    (k) => k.includes("GOOGLE") || k.includes("CALENDAR") || k.includes("SUPABASE") || k.includes("RAZORPAY")
-  );
-
-  return NextResponse.json({
-    buildSignature: "test-rebuild-v1",
-    checks,
-    allMatchingEnvKeys: allEnvKeys,
-    totalEnvCount: Object.keys(process.env).length,
+  const auth = new google.auth.JWT({
+    email: clientEmail,
+    key: privateKey,
+    scopes: ["https://www.googleapis.com/auth/calendar"],
   });
+
+  return google.calendar({ version: "v3", auth });
+}
+
+import { google } from "googleapis";
+
+export async function GET(req: NextRequest) {
+  try {
+    const calendar = getCalendarClient();
+    let calendarId = (process.env.GOOGLE_CALENDAR_ID || "").trim();
+    if (calendarId.startsWith('"') && calendarId.endsWith('"')) {
+      calendarId = calendarId.substring(1, calendarId.length - 1);
+    }
+
+    const listRes = await calendar.events.list({
+      calendarId,
+      maxResults: 1,
+    });
+
+    return NextResponse.json({
+      success: true,
+      message: "Successfully authenticated and connected to Google Calendar!",
+      eventsCount: listRes.data.items?.length || 0,
+    });
+  } catch (error: any) {
+    return NextResponse.json({
+      success: false,
+      error: error.message,
+      stack: error.stack,
+    });
+  }
 }

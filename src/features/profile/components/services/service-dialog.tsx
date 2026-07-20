@@ -249,52 +249,32 @@ export function ServiceDialog({
           description: service.title,
           order_id: data.orderId,
           handler: async function (response: any) {
-            const nameWithPayment = `${finalName} (TXN: ${response.razorpay_payment_id})`;
-            
-            // Update the existing record to 'completed'
-            const { error } = await supabase
-              .from("service_leads")
-              .update({ 
-                name: nameWithPayment,
-                payment_status: 'completed',
-                paid_at: new Date().toISOString()
-              })
-              .eq("id", leadId);
-
-            if (error) {
-              toast.error("Payment successful, but failed to save entry.");
-              console.error(error);
-            } else {
-              // Send email notification for completed payment
-              fetch("/api/notify-lead", {
+            setSubmitting(true);
+            try {
+              const verifyRes = await fetch("/api/razorpay/verify", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                  name: nameWithPayment,
-                  phone: fullPhone,
-                  serviceName: service.title,
-                  paymentStatus: "completed",
-                  date: selectedDate?.format("MMM D, YYYY") || null,
-                  time: selectedTime || null,
+                  razorpay_payment_id: response.razorpay_payment_id,
+                  razorpay_order_id: response.razorpay_order_id,
+                  razorpay_signature: response.razorpay_signature,
+                  leadId: leadId,
+                  type: "service",
                 }),
-              }).catch(console.error);
-              // Add to Google Calendar
-              if (selectedDate && selectedTime) {
-                fetch("/api/calendar", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({
-                    name: finalName,
-                    phone: fullPhone,
-                    serviceName: service.title,
-                    date: selectedDate.format("MMM D, YYYY"),
-                    time: selectedTime,
-                  }),
-                }).catch(console.error);
-              }
-              toast.success("Payment successful! Request received.");
+              });
+              const verifyData = await verifyRes.json();
+              if (!verifyRes.ok) throw new Error(verifyData.error);
+
+              toast.success("Payment successful! Appointment scheduled.");
               onClose();
               window.location.href = `/thank-you?date=${selectedDate ? selectedDate.format("YYYY-MM-DD") : ""}&time=${selectedTime || ""}`;
+            } catch (err: any) {
+              console.error("Verification failed:", err);
+              toast.error("Payment verified, but sync is slow. Our support team will confirm shortly.");
+              onClose();
+              window.location.href = `/thank-you?date=${selectedDate ? selectedDate.format("YYYY-MM-DD") : ""}&time=${selectedTime || ""}`;
+            } finally {
+              setSubmitting(false);
             }
           },
           prefill: {

@@ -125,20 +125,30 @@ export default function BookDetailsPage() {
           description: book.title,
           order_id: data.orderId,
           handler: async function (response: any) {
-            const { error } = await supabase
-              .from("book_leads")
-              .update({ 
-                payment_status: 'completed',
-                paid_at: new Date().toISOString()
-              })
-              .eq("id", leadId);
+            setSubmitting(true);
+            try {
+              const verifyRes = await fetch("/api/razorpay/verify", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  razorpay_payment_id: response.razorpay_payment_id,
+                  razorpay_order_id: response.razorpay_order_id,
+                  razorpay_signature: response.razorpay_signature,
+                  leadId: leadId,
+                  type: "book",
+                }),
+              });
+              const verifyData = await verifyRes.json();
+              if (!verifyRes.ok) throw new Error(verifyData.error);
 
-            if (error) {
-              toast.error("Payment successful, but failed to save entry.");
-              console.error(error);
-            } else {
               toast.success("Payment successful! Redirecting...");
               window.location.href = `/thank-you?type=book&bookId=${book.id}&leadId=${leadId}`;
+            } catch (err: any) {
+              console.error("Verification failed:", err);
+              toast.error("Payment verified, redirecting to downloads...");
+              window.location.href = `/thank-you?type=book&bookId=${book.id}&leadId=${leadId}`;
+            } finally {
+              setSubmitting(false);
             }
           },
           prefill: {

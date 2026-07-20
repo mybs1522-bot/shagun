@@ -4,7 +4,7 @@ import { ArrowLeft, BookOpen, Download, Loader2, ShieldCheck, Sparkles } from "l
 import Image from "next/image";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -24,6 +24,19 @@ export default function BookDetailsPage() {
   const [phone, setPhone] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [previewOpen, setPreviewOpen] = useState<string | null>(null);
+  const [formInView, setFormInView] = useState(false);
+  const formRef = useRef<HTMLDivElement>(null);
+
+  // Hide sticky CTA when form is visible
+  useEffect(() => {
+    if (!formRef.current) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => setFormInView(entry.isIntersecting),
+      { threshold: 0.3 }
+    );
+    observer.observe(formRef.current);
+    return () => observer.disconnect();
+  }, [book]);
 
   // Load Razorpay checkout script
   useEffect(() => {
@@ -218,11 +231,22 @@ export default function BookDetailsPage() {
               </div>
             )}
 
-            {/* Price Pill */}
-            <div className="flex items-center gap-2 rounded-full border border-emerald-500/20 bg-emerald-500/5 px-4 py-1.5 text-emerald-700 dark:text-emerald-400 font-semibold text-sm">
-              <Sparkles className="size-4 shrink-0" />
-              <span>{isPaid ? `₹${book.price.toLocaleString("en-IN")}` : "FREE DOWNLOAD"}</span>
-            </div>
+            {/* Price */}
+            {isPaid ? (
+              <div className="flex flex-col items-center gap-0.5">
+                <span className="text-2xl font-extrabold text-black dark:text-white tracking-tight">
+                  ₹{book.price.toLocaleString("en-IN")}
+                </span>
+                <span className="text-[10px] font-medium uppercase tracking-widest text-neutral-500 dark:text-neutral-400">
+                  One-time purchase
+                </span>
+              </div>
+            ) : (
+              <div className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-4 py-1.5">
+                <Sparkles className="size-3.5 text-emerald-600 dark:text-emerald-400" />
+                <span className="text-xs font-bold uppercase tracking-widest text-emerald-700 dark:text-emerald-400">Free</span>
+              </div>
+            )}
           </div>
 
           {/* Book details */}
@@ -272,7 +296,7 @@ export default function BookDetailsPage() {
             )}
 
             {/* Contact form */}
-            <div id="download-form" className="scroll-mt-24 border border-border/50 bg-muted/30 rounded-2xl p-5 sm:p-6 space-y-4">
+            <div id="download-form" ref={formRef} className="scroll-mt-24 border border-border/50 bg-muted/30 rounded-2xl p-5 sm:p-6 space-y-4">
               <h3 className="font-bold text-sm tracking-wide text-black dark:text-white uppercase">
                 {isPaid ? "Download E-Book" : "Get Free Access"}
               </h3>
@@ -359,23 +383,25 @@ export default function BookDetailsPage() {
         </div>
       )}
 
-      {/* Sticky mobile CTA */}
-      <div className="fixed bottom-0 inset-x-0 z-40 p-3 bg-background/80 backdrop-blur-md border-t border-border/50 md:hidden">
-        <button
-          type="button"
-          onClick={() => {
-            document.getElementById("download-form")?.scrollIntoView({ behavior: "smooth", block: "center" });
-          }}
-          className={`w-full h-12 rounded-xl text-sm font-bold shadow-lg transition-all active:scale-[0.98] cursor-pointer flex items-center justify-center gap-2 ${
-            isPaid
-              ? "bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-600/20"
-              : "bg-primary hover:bg-primary/90 text-primary-foreground"
-          }`}
-        >
-          <Download className="size-4" />
-          {isPaid ? `Download E-Book — ₹${book.price.toLocaleString("en-IN")}` : "Download Free E-Book"}
-        </button>
-      </div>
+      {/* Sticky mobile CTA — hidden when form is in view */}
+      {!formInView && (
+        <div className="fixed bottom-0 inset-x-0 z-40 p-3 bg-background/80 backdrop-blur-md border-t border-border/50 md:hidden animate-in slide-in-from-bottom-4 duration-300">
+          <button
+            type="button"
+            onClick={() => {
+              document.getElementById("download-form")?.scrollIntoView({ behavior: "smooth", block: "center" });
+            }}
+            className={`w-full h-12 rounded-xl text-sm font-bold shadow-lg transition-all active:scale-[0.98] cursor-pointer flex items-center justify-center gap-2 ${
+              isPaid
+                ? "bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-600/20"
+                : "bg-primary hover:bg-primary/90 text-primary-foreground"
+            }`}
+          >
+            <Download className="size-4" />
+            {isPaid ? `Download E-Book — ₹${book.price.toLocaleString("en-IN")}` : "Download Free E-Book"}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

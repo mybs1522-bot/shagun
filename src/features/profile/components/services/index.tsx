@@ -1,4 +1,4 @@
-import { Phone } from "lucide-react";
+import { Phone, LayoutPanelTop, Package, Calculator, Wallet } from "lucide-react";
 import React from "react";
 
 import { supabase } from "@/lib/supabase";
@@ -56,7 +56,25 @@ export async function Services() {
             </p>
             <div className="space-y-3">
               {items.map((service) => (
-                <ServiceItem key={service.id} service={service} />
+                <React.Fragment key={service.id}>
+                  <ServiceItem service={service} />
+                  {service.title.toLowerCase().includes("google meet") && (
+                    <div className="flex flex-wrap gap-2 py-1 px-1">
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-muted/60 border border-border/40 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">
+                        <LayoutPanelTop className="size-3 text-muted-foreground" /> Floor Plan
+                      </span>
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-muted/60 border border-border/40 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">
+                        <Package className="size-3 text-muted-foreground" /> 3D Design
+                      </span>
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-muted/60 border border-border/40 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">
+                        <Calculator className="size-3 text-muted-foreground" /> Estimates
+                      </span>
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-muted/60 border border-border/40 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">
+                        <Wallet className="size-3 text-muted-foreground" /> Budgeting
+                      </span>
+                    </div>
+                  )}
+                </React.Fragment>
               ))}
             </div>
           </div>

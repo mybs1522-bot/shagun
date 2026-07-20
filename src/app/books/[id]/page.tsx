@@ -237,20 +237,53 @@ export default function BookDetailsPage() {
               </div>
             )}
 
-            {/* Price */}
-            {isPaid ? (
-              <div className="flex flex-col items-center gap-0.5">
-                <span className="text-2xl font-extrabold text-black dark:text-white tracking-tight">
-                  ₹{book.price.toLocaleString("en-IN")}
-                </span>
-                <span className="text-[10px] font-medium uppercase tracking-widest text-neutral-500 dark:text-neutral-400">
-                  One-time purchase
-                </span>
-              </div>
-            ) : (
-              <div className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-4 py-1.5">
-                <Sparkles className="size-3.5 text-emerald-600 dark:text-emerald-400" />
-                <span className="text-xs font-bold uppercase tracking-widest text-emerald-700 dark:text-emerald-400">Free</span>
+            {/* Price Display with Glassmorphism */}
+            <div className="w-full max-w-[224px] mt-2 rounded-2xl border border-white/20 dark:border-white/10 bg-white/40 dark:bg-white/5 backdrop-blur-md px-4 py-3 text-center shadow-lg shadow-black/5">
+              {isPaid ? (
+                <div className="space-y-0.5">
+                  <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-neutral-500 dark:text-neutral-400">
+                    Price
+                  </div>
+                  <div className="text-3xl font-light tracking-tight text-neutral-900 dark:text-neutral-50 font-sans">
+                    ₹{book.price.toLocaleString("en-IN")}
+                  </div>
+                  <div className="text-[9px] font-medium tracking-wide text-neutral-400 dark:text-neutral-500 uppercase">
+                    One-time payment
+                  </div>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center gap-1 py-1">
+                  <Sparkles className="size-4 text-emerald-500 animate-pulse" />
+                  <span className="text-xs font-bold uppercase tracking-[0.25em] text-emerald-600 dark:text-emerald-400 font-sans">Free Download</span>
+                </div>
+              )}
+            </div>
+
+            {/* Preview pages below the price in Column 1 */}
+            {previews.length > 0 && (
+              <div className="w-full max-w-[224px] space-y-2 mt-4">
+                <h3 className="text-[10px] font-bold uppercase tracking-[0.15em] text-neutral-500 dark:text-neutral-400 text-center">
+                  Preview Pages
+                </h3>
+                <div className="grid grid-cols-4 gap-2">
+                  {previews.slice(0, 4).map((url, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => setPreviewOpen(url)}
+                      className="relative aspect-[3/4] w-full overflow-hidden rounded-lg border border-border/80 bg-muted shadow-sm hover:shadow-md hover:border-primary/40 transition-all cursor-pointer group"
+                    >
+                      <Image
+                        src={url}
+                        alt={`Preview page ${idx + 1}`}
+                        fill
+                        className="object-cover group-hover:scale-105 transition-transform duration-300"
+                        sizes="60px"
+                      />
+                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors" />
+                    </button>
+                  ))}
+                </div>
               </div>
             )}
           </div>
@@ -273,33 +306,7 @@ export default function BookDetailsPage() {
               )}
             </div>
 
-            {/* Preview thumbnails */}
-            {previews.length > 0 && (
-              <div className="space-y-2">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">
-                  Preview Pages
-                </h3>
-                <div className="grid grid-cols-4 gap-2">
-                  {previews.slice(0, 4).map((url, idx) => (
-                    <button
-                      key={idx}
-                      type="button"
-                      onClick={() => setPreviewOpen(url)}
-                      className="relative aspect-[3/4] overflow-hidden rounded-lg border border-border/80 bg-muted shadow-sm hover:shadow-md hover:border-primary/40 transition-all cursor-pointer group"
-                    >
-                      <Image
-                        src={url}
-                        alt={`Preview page ${idx + 1}`}
-                        fill
-                        className="object-cover group-hover:scale-105 transition-transform duration-300"
-                        sizes="120px"
-                      />
-                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors" />
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
+
 
             {/* Contact form */}
             <div id="download-form" ref={formRef} className="scroll-mt-24 border border-border/50 bg-muted/30 rounded-2xl p-5 sm:p-6 space-y-4">

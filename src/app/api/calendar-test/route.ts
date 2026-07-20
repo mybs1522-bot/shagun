@@ -37,6 +37,7 @@ export async function GET(req: NextRequest) {
   );
 
   return NextResponse.json({
+    buildSignature: "test-rebuild-v1",
     checks,
     allMatchingEnvKeys: allEnvKeys,
     totalEnvCount: Object.keys(process.env).length,

@@ -3,16 +3,14 @@
 import { ArrowRightIcon,Loader2 } from "lucide-react";
 import Image from "next/image";
 import React, { useCallback,useEffect, useState } from "react";
+import Link from "next/link";
 
 import { Book } from "@/features/books/types";
 import { supabase } from "@/lib/supabase";
 
-import { BookDialog } from "./book-dialog";
-
 export function BooksSection() {
   const [books, setBooks] = useState<Book[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedBook, setSelectedBook] = useState<Book | null>(null);
 
   const fetchBooks = useCallback(async () => {
     setLoading(true);
@@ -60,9 +58,9 @@ export function BooksSection() {
       <div className="relative p-6">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           {books.map((book) => (
-            <button
+            <Link
               key={book.id}
-              onClick={() => setSelectedBook(book)}
+              href={`/books/${book.id}`}
               className="group relative flex flex-col items-center justify-center overflow-hidden rounded-xl border border-border bg-card p-6 text-center transition-all hover:bg-muted/50"
             >
               {book.price > 0 && (
@@ -88,18 +86,12 @@ export function BooksSection() {
               )}
               <h3 className="font-medium">{book.title}</h3>
               <div className="mt-4 flex items-center gap-2 text-sm font-medium text-blue-500 opacity-0 transition-opacity group-hover:opacity-100">
-                {book.price > 0 ? "Buy Now" : "Download"} <ArrowRightIcon className="size-4" />
+                View Details <ArrowRightIcon className="size-4" />
               </div>
-            </button>
+            </Link>
           ))}
         </div>
       </div>
-
-      <BookDialog
-        open={!!selectedBook}
-        onClose={() => setSelectedBook(null)}
-        book={selectedBook}
-      />
     </div>
   );
 }

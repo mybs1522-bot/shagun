@@ -7,6 +7,7 @@ export type Book = {
   is_active: boolean;
   price: number;
   pdf_url: string | null;
+  description: string | null;
   created_at: string;
 };
 

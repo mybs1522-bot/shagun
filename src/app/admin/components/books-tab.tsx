@@ -1,6 +1,6 @@
 "use client";
 
-import { Loader2, Pencil, Plus, Trash2 } from "lucide-react";
+import { Loader2, Pencil, Plus, Trash2, Upload } from "lucide-react";
 import Image from "next/image";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -40,6 +40,7 @@ const EMPTY_FORM = {
   is_active: true,
   price: 0,
   pdf_url: "",
+  description: "",
 };
 
 export function BooksTab() {
@@ -281,6 +282,7 @@ function BookDialog({
   const isEditing = !!book;
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
+  const [uploadingCover, setUploadingCover] = useState(false);
 
   useEffect(() => {
     if (book) {
@@ -292,6 +294,7 @@ function BookDialog({
         is_active: book.is_active,
         price: book.price ?? 0,
         pdf_url: book.pdf_url ?? "",
+        description: book.description ?? "",
       });
     } else {
       setForm(EMPTY_FORM);
@@ -300,6 +303,36 @@ function BookDialog({
 
   const updateField = (key: string, value: unknown) => {
     setForm((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const handleCoverUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadingCover(true);
+    try {
+      const fileExt = file.name.split(".").pop();
+      const fileName = `${crypto.randomUUID()}.${fileExt}`;
+      const filePath = `covers/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("book-covers")
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data: publicUrlData } = supabase.storage
+        .from("book-covers")
+        .getPublicUrl(filePath);
+
+      updateField("thumbnail_url", publicUrlData.publicUrl);
+      toast.success("Cover image uploaded successfully!");
+    } catch (err) {
+      console.error("Cover upload error:", err);
+      toast.error("Failed to upload cover image.");
+    } finally {
+      setUploadingCover(false);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -318,6 +351,7 @@ function BookDialog({
       is_active: form.is_active,
       price: Number(form.price) || 0,
       pdf_url: form.pdf_url?.trim() || null,
+      description: form.description?.trim() || null,
     };
 
     let error;
@@ -360,7 +394,61 @@ function BookDialog({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="bk-thumb">Thumbnail URL</Label>
+            <Label htmlFor="bk-desc">Description</Label>
+            <textarea
+              id="bk-desc"
+              rows={3}
+              value={form.description}
+              onChange={(e) => updateField("description", e.target.value)}
+              placeholder="Provide a short overview of the book contents..."
+              className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label>Cover Image</Label>
+            <div className="flex gap-4 items-center">
+              {form.thumbnail_url ? (
+                <div className="relative size-16 overflow-hidden rounded border border-border shrink-0">
+                  <img
+                    src={form.thumbnail_url}
+                    alt="Cover preview"
+                    className="size-full object-cover"
+                  />
+                </div>
+              ) : (
+                <div className="flex size-16 items-center justify-center rounded border border-border bg-muted shrink-0 text-[10px] text-muted-foreground text-center">
+                  No Cover
+                </div>
+              )}
+              <div className="flex-1 space-y-1.5">
+                <div className="flex gap-2">
+                  <Button asChild variant="outline" className="cursor-pointer" disabled={uploadingCover}>
+                    <label>
+                      {uploadingCover ? <Loader2 className="mr-2 size-3 animate-spin" /> : <Upload className="mr-2 size-3" />}
+                      {uploadingCover ? "Uploading..." : "Upload Image"}
+                      <input
+                        type="file"
+                        className="hidden"
+                        accept="image/*"
+                        onChange={handleCoverUpload}
+                        disabled={uploadingCover}
+                      />
+                    </label>
+                  </Button>
+                  {form.thumbnail_url && (
+                    <Button variant="ghost" onClick={() => updateField("thumbnail_url", "")}>
+                      Remove
+                    </Button>
+                  )}
+                </div>
+                <p className="text-[10px] text-muted-foreground">Supported formats: JPG, PNG, WEBP</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="bk-thumb">Or Cover Image URL</Label>
             <Input
               id="bk-thumb"
               type="url"

@@ -4,7 +4,7 @@ import { ArrowLeft, BookOpen, Download, Loader2, ShieldCheck, Sparkles } from "l
 import Image from "next/image";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, useCallback } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -25,18 +25,24 @@ export default function BookDetailsPage() {
   const [submitting, setSubmitting] = useState(false);
   const [previewOpen, setPreviewOpen] = useState<string | null>(null);
   const [formInView, setFormInView] = useState(false);
-  const formRef = useRef<HTMLDivElement>(null);
+  const observerRef = useRef<IntersectionObserver | null>(null);
 
-  // Hide sticky CTA when form is visible
-  useEffect(() => {
-    if (!formRef.current) return;
-    const observer = new IntersectionObserver(
-      ([entry]) => setFormInView(entry.isIntersecting),
-      { threshold: 0.3 }
-    );
-    observer.observe(formRef.current);
-    return () => observer.disconnect();
-  }, [book]);
+  const formRef = useCallback((node: HTMLDivElement | null) => {
+    if (observerRef.current) {
+      observerRef.current.disconnect();
+      observerRef.current = null;
+    }
+    if (node) {
+      const observer = new IntersectionObserver(
+        ([entry]) => {
+          setFormInView(entry.isIntersecting);
+        },
+        { threshold: 0 }
+      );
+      observer.observe(node);
+      observerRef.current = observer;
+    }
+  }, []);
 
   // Load Razorpay checkout script
   useEffect(() => {

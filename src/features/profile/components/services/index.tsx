@@ -55,30 +55,28 @@ export async function Services() {
               )}
             </p>
             <div className="space-y-3">
+              {category.toLowerCase().includes("consultation") && (
+                <div className="flex flex-wrap gap-2 py-1.5 justify-center">
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900 px-3.5 py-2 text-[10px] font-bold uppercase tracking-wider shadow-sm border border-neutral-800 dark:border-neutral-200">
+                    <LayoutPanelTop className="size-3.5" />
+                    Floor Plan
+                  </span>
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900 px-3.5 py-2 text-[10px] font-bold uppercase tracking-wider shadow-sm border border-neutral-800 dark:border-neutral-200">
+                    <Package className="size-3.5" />
+                    3D Design
+                  </span>
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900 px-3.5 py-2 text-[10px] font-bold uppercase tracking-wider shadow-sm border border-neutral-800 dark:border-neutral-200">
+                    <Calculator className="size-3.5" />
+                    Estimates
+                  </span>
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900 px-3.5 py-2 text-[10px] font-bold uppercase tracking-wider shadow-sm border border-neutral-800 dark:border-neutral-200">
+                    <Wallet className="size-3.5" />
+                    Budgeting
+                  </span>
+                </div>
+              )}
               {items.map((service) => (
-                <React.Fragment key={service.id}>
-                  <ServiceItem service={service} />
-                  {service.title.toLowerCase().includes("google meet") && (
-                    <div className="flex flex-wrap gap-2 py-1 justify-center">
-                      <span className="inline-flex items-center gap-1.5 rounded-full bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900 px-3.5 py-2 text-[10px] font-bold uppercase tracking-wider shadow-sm border border-neutral-800 dark:border-neutral-200">
-                        <LayoutPanelTop className="size-3.5" />
-                        Floor Plan
-                      </span>
-                      <span className="inline-flex items-center gap-1.5 rounded-full bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900 px-3.5 py-2 text-[10px] font-bold uppercase tracking-wider shadow-sm border border-neutral-800 dark:border-neutral-200">
-                        <Package className="size-3.5" />
-                        3D Design
-                      </span>
-                      <span className="inline-flex items-center gap-1.5 rounded-full bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900 px-3.5 py-2 text-[10px] font-bold uppercase tracking-wider shadow-sm border border-neutral-800 dark:border-neutral-200">
-                        <Calculator className="size-3.5" />
-                        Estimates
-                      </span>
-                      <span className="inline-flex items-center gap-1.5 rounded-full bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900 px-3.5 py-2 text-[10px] font-bold uppercase tracking-wider shadow-sm border border-neutral-800 dark:border-neutral-200">
-                        <Wallet className="size-3.5" />
-                        Budgeting
-                      </span>
-                    </div>
-                  )}
-                </React.Fragment>
+                <ServiceItem key={service.id} service={service} />
               ))}
             </div>
           </div>

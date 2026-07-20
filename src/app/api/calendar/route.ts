@@ -26,6 +26,36 @@ function getCalendarClient() {
   return google.calendar({ version: "v3", auth });
 }
 
+function parseKolkataDateTime(dateStr: string, timeStr: string): Date {
+  const timeRegex = /(\d+):(\d+)\s*(AM|PM)/i;
+  const match = timeStr.match(timeRegex);
+  if (!match) {
+    throw new Error(`Invalid time format: ${timeStr}`);
+  }
+  
+  let hours = parseInt(match[1], 10);
+  const minutes = parseInt(match[2], 10);
+  const ampm = match[3].toUpperCase();
+  
+  if (ampm === "PM" && hours < 12) hours += 12;
+  if (ampm === "AM" && hours === 12) hours = 0;
+  
+  const hh = String(hours).padStart(2, "0");
+  const mm = String(minutes).padStart(2, "0");
+  
+  const tempDate = new Date(dateStr);
+  if (isNaN(tempDate.getTime())) {
+    throw new Error(`Invalid date format: ${dateStr}`);
+  }
+  
+  const yyyy = tempDate.getFullYear();
+  const month = String(tempDate.getMonth() + 1).padStart(2, "0");
+  const dd = String(tempDate.getDate()).padStart(2, "0");
+  
+  const kolkataISO = `${yyyy}-${month}-${dd}T${hh}:${mm}:00+05:30`;
+  return new Date(kolkataISO);
+}
+
 export async function POST(req: NextRequest) {
   try {
     const { name, phone, serviceName, date, time } = await req.json();
@@ -43,12 +73,12 @@ export async function POST(req: NextRequest) {
       calendarId = calendarId.substring(1, calendarId.length - 1);
     }
 
-    // Parse the date and time into a proper DateTime
-    // date comes as "Jul 8, 2026" and time as "11:00 AM"
-    const dateTime = new Date(`${date} ${time}`);
-    if (isNaN(dateTime.getTime())) {
+    let dateTime;
+    try {
+      dateTime = parseKolkataDateTime(date, time);
+    } catch (err: any) {
       return NextResponse.json(
-        { error: "Invalid date/time format" },
+        { error: err.message || "Invalid date/time format" },
         { status: 400 }
       );
     }

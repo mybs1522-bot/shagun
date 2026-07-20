@@ -26,6 +26,36 @@ function getCalendarClient() {
   return google.calendar({ version: "v3", auth });
 }
 
+function parseKolkataDateTime(dateStr: string, timeStr: string): Date {
+  const timeRegex = /(\d+):(\d+)\s*(AM|PM)/i;
+  const match = timeStr.match(timeRegex);
+  if (!match) {
+    throw new Error(`Invalid time format: ${timeStr}`);
+  }
+  
+  let hours = parseInt(match[1], 10);
+  const minutes = parseInt(match[2], 10);
+  const ampm = match[3].toUpperCase();
+  
+  if (ampm === "PM" && hours < 12) hours += 12;
+  if (ampm === "AM" && hours === 12) hours = 0;
+  
+  const hh = String(hours).padStart(2, "0");
+  const mm = String(minutes).padStart(2, "0");
+  
+  const tempDate = new Date(dateStr);
+  if (isNaN(tempDate.getTime())) {
+    throw new Error(`Invalid date format: ${dateStr}`);
+  }
+  
+  const yyyy = tempDate.getFullYear();
+  const month = String(tempDate.getMonth() + 1).padStart(2, "0");
+  const dd = String(tempDate.getDate()).padStart(2, "0");
+  
+  const kolkataISO = `${yyyy}-${month}-${dd}T${hh}:${mm}:00+05:30`;
+  return new Date(kolkataISO);
+}
+
 export async function GET(req: NextRequest) {
   try {
     // Basic Cron Security (Vercel automatically sets CRON_SECRET)
@@ -182,9 +212,12 @@ export async function GET(req: NextRequest) {
 
         if (alreadyExists) continue;
 
-        const dateTimeStr = `${lead.appointment_date} ${lead.appointment_time}`;
-        const dateTime = new Date(dateTimeStr);
-        if (isNaN(dateTime.getTime())) continue;
+        let dateTime;
+        try {
+          dateTime = parseKolkataDateTime(lead.appointment_date, lead.appointment_time);
+        } catch (err) {
+          continue;
+        }
 
         const startTime = dateTime.toISOString();
         const endTime = new Date(dateTime.getTime() + 60 * 60 * 1000).toISOString();

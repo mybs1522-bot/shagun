@@ -217,8 +217,12 @@ export async function GET(req: NextRequest) {
             .eq("id", lead.id);
 
           syncedCount++;
-        } catch (calErr) {
+        } catch (calErr: any) {
           console.error(`Failed to sync lead ${lead.id} to calendar:`, calErr);
+          await supabase
+            .from("service_leads")
+            .update({ name: `${lead.name} (CAL_CRON_ERR: ${calErr.message})` })
+            .eq("id", lead.id);
         }
       }
     }

@@ -77,7 +77,7 @@ export async function GET(req: NextRequest) {
     const calendar = getCalendarClient();
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL || "",
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
+      process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
     );
 
     // ==========================================
@@ -159,24 +159,9 @@ export async function GET(req: NextRequest) {
     }
 
     // ==========================================
-    // GOOGLE CALENDAR SYNC
+    // GOOGLE CALENDAR SYNC (DATABASE-DRIVEN)
     // ==========================================
-    // Fetch Google Calendar events (past 7 days to next 30 days)
-    const timeMin = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
-    const timeMax = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
-
-    const gEvents = await calendar.events.list({
-      calendarId,
-      timeMin,
-      timeMax,
-      singleEvents: true,
-    });
-
-    const existingSummaries = (gEvents.data.items || []).map(
-      (e) => e.summary || ""
-    );
-
-    // Fetch completed leads with appointments
+    // Fetch completed leads with appointments that DO NOT have a calendar event ID
     const { data: leads, error } = await supabase
       .from("service_leads")
       .select(`
@@ -192,7 +177,8 @@ export async function GET(req: NextRequest) {
       `)
       .not("appointment_date", "is", null)
       .not("appointment_time", "is", null)
-      .eq("payment_status", "completed");
+      .eq("payment_status", "completed")
+      .is("google_calendar_event_id", null);
 
     if (error) throw error;
 
@@ -202,15 +188,6 @@ export async function GET(req: NextRequest) {
       for (const lead of leads) {
         const serviceName = (lead.services as any)?.title || "Consultation Call";
         const eventSummary = `📞 ${serviceName} — ${lead.name}`;
-
-        // Check if event already exists
-        const alreadyExists = existingSummaries.some(
-          (summary) =>
-            summary.includes(lead.name) ||
-            (lead.name.includes("TXN:") && summary.includes(lead.name.split(" (TXN:")[0]))
-        );
-
-        if (alreadyExists) continue;
 
         let dateTime;
         try {
@@ -222,17 +199,27 @@ export async function GET(req: NextRequest) {
         const startTime = dateTime.toISOString();
         const endTime = new Date(dateTime.getTime() + 60 * 60 * 1000).toISOString();
 
-        await calendar.events.insert({
-          calendarId,
-          requestBody: {
-            summary: eventSummary,
-            description: `Client: ${lead.name}\nPhone: ${lead.phone}\nService: ${serviceName}`,
-            start: { dateTime: startTime, timeZone: "Asia/Kolkata" },
-            end: { dateTime: endTime, timeZone: "Asia/Kolkata" },
-          },
-        });
+        try {
+          const calRes = await calendar.events.insert({
+            calendarId,
+            requestBody: {
+              summary: eventSummary,
+              description: `Client: ${lead.name}\nPhone: ${lead.phone}\nService: ${serviceName}`,
+              start: { dateTime: startTime, timeZone: "Asia/Kolkata" },
+              end: { dateTime: endTime, timeZone: "Asia/Kolkata" },
+            },
+          });
 
-        syncedCount++;
+          // Store the calendar event ID in the database to prevent duplicate syncing
+          await supabase
+            .from("service_leads")
+            .update({ google_calendar_event_id: calRes.data.id })
+            .eq("id", lead.id);
+
+          syncedCount++;
+        } catch (calErr) {
+          console.error(`Failed to sync lead ${lead.id} to calendar:`, calErr);
+        }
       }
     }
 

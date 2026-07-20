@@ -301,7 +301,9 @@ export function ServiceDialog({
       }
     } else {
       setSubmitting(true);
+      const leadId = crypto.randomUUID();
       const { error } = await supabase.from("service_leads").insert({
+        id: leadId,
         name: finalName,
         phone: fullPhone,
         service_id: service.id,
@@ -333,6 +335,7 @@ export function ServiceDialog({
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
+              leadId: leadId,
               name: finalName,
               phone: fullPhone,
               serviceName: service.title,

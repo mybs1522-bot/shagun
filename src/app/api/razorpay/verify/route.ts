@@ -148,7 +148,7 @@ export async function POST(req: NextRequest) {
           const startTime = dateTime.toISOString();
           const endTime = new Date(dateTime.getTime() + 60 * 60 * 1000).toISOString();
 
-          await calendar.events.insert({
+          const calRes = await calendar.events.insert({
             calendarId,
             requestBody: {
               summary: `📞 ${serviceName} — ${nameWithPayment}`,
@@ -157,6 +157,12 @@ export async function POST(req: NextRequest) {
               end: { dateTime: endTime, timeZone: "Asia/Kolkata" },
             },
           });
+
+          // Save Google Calendar Event ID to DB
+          await supabase
+            .from("service_leads")
+            .update({ google_calendar_event_id: calRes.data.id })
+            .eq("id", leadId);
         } catch (calErr) {
           console.error("Failed to add to calendar immediately:", calErr);
         }

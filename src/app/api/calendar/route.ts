@@ -1,5 +1,6 @@
 import { google } from "googleapis";
 import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
 
 function getCalendarClient() {
   let rawKey = (process.env.GOOGLE_CALENDAR_PRIVATE_KEY || "").trim();
@@ -58,7 +59,7 @@ function parseKolkataDateTime(dateStr: string, timeStr: string): Date {
 
 export async function POST(req: NextRequest) {
   try {
-    const { name, phone, serviceName, date, time } = await req.json();
+    const { leadId, name, phone, serviceName, date, time } = await req.json();
 
     if (!date || !time) {
       return NextResponse.json(
@@ -119,6 +120,22 @@ export async function POST(req: NextRequest) {
       calendarId,
       requestBody: event,
     });
+
+    // Update database lead record with Google Calendar Event ID
+    if (leadId) {
+      try {
+        const supabase = createClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL || "",
+          process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
+        );
+        await supabase
+          .from("service_leads")
+          .update({ google_calendar_event_id: response.data.id })
+          .eq("id", leadId);
+      } catch (dbErr) {
+        console.error("Failed to update google_calendar_event_id in DB:", dbErr);
+      }
+    }
 
     return NextResponse.json({
       success: true,

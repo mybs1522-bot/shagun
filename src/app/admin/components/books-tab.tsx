@@ -315,11 +315,17 @@ function BookDialog({
       const fileName = `${crypto.randomUUID()}.${fileExt}`;
       const filePath = `covers/${fileName}`;
 
-      const { error: uploadError } = await supabase.storage
+      const { data: uploadData, error: uploadError } = await supabase.storage
         .from("book-covers")
-        .upload(filePath, file);
+        .upload(filePath, file, { upsert: true });
 
-      if (uploadError) throw uploadError;
+      if (uploadError) {
+        console.error("Supabase upload error:", uploadError.message, uploadError);
+        toast.error(`Upload failed: ${uploadError.message}`);
+        return;
+      }
+
+      console.log("Upload succeeded:", uploadData);
 
       const { data: publicUrlData } = supabase.storage
         .from("book-covers")
@@ -327,11 +333,13 @@ function BookDialog({
 
       updateField("thumbnail_url", publicUrlData.publicUrl);
       toast.success("Cover image uploaded successfully!");
-    } catch (err) {
+    } catch (err: any) {
       console.error("Cover upload error:", err);
-      toast.error("Failed to upload cover image.");
+      toast.error(`Failed to upload cover image: ${err?.message || "Unknown error"}`);
     } finally {
       setUploadingCover(false);
+      // Reset file input so same file can be re-selected
+      e.target.value = "";
     }
   };
 
@@ -423,21 +431,19 @@ function BookDialog({
               )}
               <div className="flex-1 space-y-1.5">
                 <div className="flex gap-2">
-                  <Button asChild variant="outline" className="cursor-pointer" disabled={uploadingCover}>
-                    <label>
-                      {uploadingCover ? <Loader2 className="mr-2 size-3 animate-spin" /> : <Upload className="mr-2 size-3" />}
-                      {uploadingCover ? "Uploading..." : "Upload Image"}
-                      <input
-                        type="file"
-                        className="hidden"
-                        accept="image/*"
-                        onChange={handleCoverUpload}
-                        disabled={uploadingCover}
-                      />
-                    </label>
-                  </Button>
+                  <label className="inline-flex items-center justify-center gap-2 rounded-md border border-input bg-background px-4 py-2 text-sm font-medium cursor-pointer hover:bg-accent hover:text-accent-foreground transition-colors">
+                    {uploadingCover ? <Loader2 className="size-3 animate-spin" /> : <Upload className="size-3" />}
+                    {uploadingCover ? "Uploading..." : "Upload Image"}
+                    <input
+                      type="file"
+                      className="hidden"
+                      accept="image/*"
+                      onChange={handleCoverUpload}
+                      disabled={uploadingCover}
+                    />
+                  </label>
                   {form.thumbnail_url && (
-                    <Button variant="ghost" onClick={() => updateField("thumbnail_url", "")}>
+                    <Button type="button" variant="ghost" onClick={() => updateField("thumbnail_url", "")}>
                       Remove
                     </Button>
                   )}

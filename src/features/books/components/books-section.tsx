@@ -69,7 +69,7 @@ export function BooksSection() {
                 </span>
               )}
               {book.thumbnail_url ? (
-                <div className="relative mb-4 h-32 w-24 overflow-hidden rounded shadow-sm border border-border">
+                <div className="relative mb-4 w-24 aspect-[9/16] overflow-hidden rounded shadow-sm border border-border">
                   <Image
                     src={book.thumbnail_url}
                     alt={book.title}
@@ -80,7 +80,7 @@ export function BooksSection() {
                   />
                 </div>
               ) : (
-                <div className="mb-4 flex h-32 w-24 items-center justify-center rounded shadow-sm border border-border bg-muted">
+                <div className="mb-4 flex w-24 aspect-[9/16] items-center justify-center rounded shadow-sm border border-border bg-muted">
                   <span className="text-xs text-muted-foreground">No Cover</span>
                 </div>
               )}

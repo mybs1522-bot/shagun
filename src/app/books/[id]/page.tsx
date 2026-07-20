@@ -272,7 +272,7 @@ export default function BookDetailsPage() {
             )}
 
             {/* Contact form */}
-            <div className="border border-border/50 bg-muted/30 rounded-2xl p-5 sm:p-6 space-y-4">
+            <div id="download-form" className="scroll-mt-24 border border-border/50 bg-muted/30 rounded-2xl p-5 sm:p-6 space-y-4">
               <h3 className="font-bold text-sm tracking-wide text-black dark:text-white uppercase">
                 {isPaid ? "Download E-Book" : "Get Free Access"}
               </h3>
@@ -358,6 +358,24 @@ export default function BookDetailsPage() {
           </div>
         </div>
       )}
+
+      {/* Sticky mobile CTA */}
+      <div className="fixed bottom-0 inset-x-0 z-40 p-3 bg-background/80 backdrop-blur-md border-t border-border/50 md:hidden">
+        <button
+          type="button"
+          onClick={() => {
+            document.getElementById("download-form")?.scrollIntoView({ behavior: "smooth", block: "center" });
+          }}
+          className={`w-full h-12 rounded-xl text-sm font-bold shadow-lg transition-all active:scale-[0.98] cursor-pointer flex items-center justify-center gap-2 ${
+            isPaid
+              ? "bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-600/20"
+              : "bg-primary hover:bg-primary/90 text-primary-foreground"
+          }`}
+        >
+          <Download className="size-4" />
+          {isPaid ? `Download E-Book — ₹${book.price.toLocaleString("en-IN")}` : "Download Free E-Book"}
+        </button>
+      </div>
     </div>
   );
 }

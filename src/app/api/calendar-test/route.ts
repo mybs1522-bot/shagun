@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+// Force a fresh Vercel build to pick up new environment variables
 
 export async function GET(req: NextRequest) {
   // Check every possible env var name for the Google Calendar key

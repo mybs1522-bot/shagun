@@ -41,6 +41,7 @@ const EMPTY_FORM = {
   price: 0,
   pdf_url: "",
   description: "",
+  preview_images: [] as string[],
 };
 
 export function BooksTab() {
@@ -295,6 +296,7 @@ function BookDialog({
         price: book.price ?? 0,
         pdf_url: book.pdf_url ?? "",
         description: book.description ?? "",
+        preview_images: book.preview_images ?? [],
       });
     } else {
       setForm(EMPTY_FORM);
@@ -360,6 +362,7 @@ function BookDialog({
       price: Number(form.price) || 0,
       pdf_url: form.pdf_url?.trim() || null,
       description: form.description?.trim() || null,
+      preview_images: form.preview_images.filter(Boolean),
     };
 
     let error;
@@ -508,6 +511,69 @@ function BookDialog({
               onChange={(e) => updateField("pdf_url", e.target.value)}
               placeholder="https://example.com/downloadable-book.pdf"
             />
+          </div>
+
+          <div className="space-y-2">
+            <Label>Preview Pages (up to 4 images)</Label>
+            <p className="text-[10px] text-muted-foreground">Upload images showing sample pages from the book.</p>
+            <div className="grid grid-cols-4 gap-2">
+              {[0, 1, 2, 3].map((idx) => {
+                const imgUrl = form.preview_images[idx] || "";
+                return (
+                  <div key={idx} className="relative aspect-[3/4] rounded-lg border border-border bg-muted overflow-hidden group">
+                    {imgUrl ? (
+                      <>
+                        <img src={imgUrl} alt={`Preview ${idx + 1}`} className="size-full object-cover" />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const updated = [...form.preview_images];
+                            updated.splice(idx, 1);
+                            updateField("preview_images", updated);
+                          }}
+                          className="absolute top-1 right-1 size-5 rounded-full bg-black/60 text-white flex items-center justify-center text-[10px] opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500"
+                        >
+                          ✕
+                        </button>
+                      </>
+                    ) : (
+                      <label className="flex size-full items-center justify-center cursor-pointer hover:bg-accent transition-colors">
+                        <span className="text-[10px] text-muted-foreground font-medium">+ Add</span>
+                        <input
+                          type="file"
+                          className="hidden"
+                          accept="image/*"
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+                            try {
+                              const fileExt = file.name.split(".").pop();
+                              const fileName = `${crypto.randomUUID()}.${fileExt}`;
+                              const filePath = `previews/${fileName}`;
+                              const { error: upErr } = await supabase.storage
+                                .from("book-covers")
+                                .upload(filePath, file, { upsert: true });
+                              if (upErr) throw upErr;
+                              const { data: urlData } = supabase.storage
+                                .from("book-covers")
+                                .getPublicUrl(filePath);
+                              const updated = [...form.preview_images];
+                              updated[idx] = urlData.publicUrl;
+                              updateField("preview_images", updated);
+                              toast.success(`Preview ${idx + 1} uploaded!`);
+                            } catch (err: any) {
+                              console.error(err);
+                              toast.error(`Preview upload failed: ${err?.message || "Unknown error"}`);
+                            }
+                            e.target.value = "";
+                          }}
+                        />
+                      </label>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           </div>
 
           <div className="flex items-center justify-between rounded-lg border border-border px-4 py-3">

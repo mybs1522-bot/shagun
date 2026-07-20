@@ -8,6 +8,7 @@ export type Book = {
   price: number;
   pdf_url: string | null;
   description: string | null;
+  preview_images: string[] | null;
   created_at: string;
 };
 

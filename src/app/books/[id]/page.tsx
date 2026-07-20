@@ -23,6 +23,7 @@ export default function BookDetailsPage() {
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState<string | null>(null);
 
   // Load Razorpay checkout script
   useEffect(() => {
@@ -74,7 +75,6 @@ export default function BookDetailsPage() {
     if (isPaymentRequired) {
       const leadId = crypto.randomUUID();
       try {
-        // Save the lead immediately before payment as 'pending'
         await supabase.from("book_leads").insert({
           id: leadId,
           email: email.trim(),
@@ -100,7 +100,6 @@ export default function BookDetailsPage() {
           description: book.title,
           order_id: data.orderId,
           handler: async function (response: any) {
-            // Update the existing record to 'completed'
             const { error } = await supabase
               .from("book_leads")
               .update({ 
@@ -122,7 +121,7 @@ export default function BookDetailsPage() {
             contact: phone.trim(),
           },
           theme: {
-            color: "#10b981", // emerald-500
+            color: "#10b981",
           },
           modal: {
             ondismiss: function() {
@@ -153,9 +152,7 @@ export default function BookDetailsPage() {
         console.error(error);
       } else {
         toast.success("Success! Redirecting you to the book...");
-        // Redirect to the book link in a new tab
         window.open(book.link, "_blank");
-        // Reset form
         setEmail("");
         setPhone("");
       }
@@ -173,8 +170,8 @@ export default function BookDetailsPage() {
   if (!book) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-4 text-center px-4">
-        <h1 className="text-2xl font-bold">Book Not Found</h1>
-        <p className="text-muted-foreground">The book you are looking for does not exist or has been removed.</p>
+        <h1 className="text-2xl font-bold text-black dark:text-white">Book Not Found</h1>
+        <p className="text-neutral-600 dark:text-neutral-400">The book you are looking for does not exist or has been removed.</p>
         <Link href="/" className="inline-flex items-center gap-2 text-sm font-semibold text-primary hover:underline">
           <ArrowLeft className="size-4" /> Back to Profile
         </Link>
@@ -183,6 +180,7 @@ export default function BookDetailsPage() {
   }
 
   const isPaid = book.price > 0;
+  const previews = book.preview_images?.filter(Boolean) ?? [];
 
   return (
     <div className="min-h-screen bg-background py-8 px-4 sm:px-6 lg:px-8">
@@ -191,70 +189,98 @@ export default function BookDetailsPage() {
         {/* Back Link */}
         <Link 
           href="/" 
-          className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+          className="inline-flex items-center gap-2 text-sm font-medium text-neutral-600 dark:text-neutral-400 hover:text-black dark:hover:text-white transition-colors"
         >
           <ArrowLeft className="size-4" />
           Back to Profile
         </Link>
 
-        {/* Dynamic Detail Card */}
+        {/* Main Detail Card */}
         <div className="grid grid-cols-1 md:grid-cols-12 gap-8 bg-card border border-border/60 rounded-3xl p-6 sm:p-8 shadow-xl shadow-muted/5 overflow-hidden relative">
           
-          {/* Cover image area */}
-          <div className="md:col-span-4 flex flex-col items-center justify-start gap-4">
+          {/* Cover image area — 9:16 aspect ratio */}
+          <div className="md:col-span-5 flex flex-col items-center justify-start gap-4">
             {book.thumbnail_url ? (
-              <div className="relative aspect-[3/4] w-48 sm:w-56 overflow-hidden rounded-2xl border border-border/80 shadow-lg shadow-black/10">
+              <div className="relative aspect-[9/16] w-48 sm:w-56 overflow-hidden rounded-2xl border border-border/80 shadow-lg shadow-black/10">
                 <Image
                   src={book.thumbnail_url}
                   alt={book.title}
                   fill
                   className="object-cover"
-                  sizes="(max-width: 768px) 100vw, 300px"
+                  sizes="(max-width: 768px) 192px, 224px"
                   priority
                 />
               </div>
             ) : (
-              <div className="aspect-[3/4] w-48 sm:w-56 flex flex-col items-center justify-center rounded-2xl border border-border bg-muted shadow-sm">
-                <BookOpen className="size-12 text-muted-foreground/60 mb-2" />
-                <span className="text-xs text-muted-foreground font-medium">No Cover Available</span>
+              <div className="aspect-[9/16] w-48 sm:w-56 flex flex-col items-center justify-center rounded-2xl border border-border bg-muted shadow-sm">
+                <BookOpen className="size-12 text-neutral-400 mb-2" />
+                <span className="text-xs text-neutral-500 font-medium">No Cover Available</span>
               </div>
             )}
 
             {/* Price Pill */}
-            <div className="flex items-center gap-2 rounded-full border border-emerald-500/20 bg-emerald-500/5 px-4 py-1.5 text-emerald-600 dark:text-emerald-400 font-semibold text-sm">
+            <div className="flex items-center gap-2 rounded-full border border-emerald-500/20 bg-emerald-500/5 px-4 py-1.5 text-emerald-700 dark:text-emerald-400 font-semibold text-sm">
               <Sparkles className="size-4 shrink-0" />
               <span>{isPaid ? `₹${book.price.toLocaleString("en-IN")}` : "FREE DOWNLOAD"}</span>
             </div>
           </div>
 
-          {/* Book detail details */}
-          <div className="md:col-span-8 flex flex-col justify-between gap-6">
+          {/* Book details */}
+          <div className="md:col-span-7 flex flex-col justify-between gap-6">
             <div className="space-y-4">
-              <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground leading-tight">
+              <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-black dark:text-white leading-tight">
                 {book.title}
               </h1>
 
               {book.description ? (
-                <p className="text-muted-foreground text-sm sm:text-base leading-relaxed whitespace-pre-line">
+                <p className="text-neutral-700 dark:text-neutral-300 text-sm sm:text-base leading-relaxed whitespace-pre-line">
                   {book.description}
                 </p>
               ) : (
-                <p className="text-muted-foreground text-sm sm:text-base italic">
+                <p className="text-neutral-600 dark:text-neutral-400 text-sm sm:text-base italic">
                   Explore the details and insights from Ar. Shagun Yadav in this premium E-Book publication. Get instant access by filling out your details.
                 </p>
               )}
             </div>
 
-            {/* Contact details for transaction */}
+            {/* Preview thumbnails */}
+            {previews.length > 0 && (
+              <div className="space-y-2">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">
+                  Preview Pages
+                </h3>
+                <div className="grid grid-cols-4 gap-2">
+                  {previews.slice(0, 4).map((url, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => setPreviewOpen(url)}
+                      className="relative aspect-[3/4] overflow-hidden rounded-lg border border-border/80 bg-muted shadow-sm hover:shadow-md hover:border-primary/40 transition-all cursor-pointer group"
+                    >
+                      <Image
+                        src={url}
+                        alt={`Preview page ${idx + 1}`}
+                        fill
+                        className="object-cover group-hover:scale-105 transition-transform duration-300"
+                        sizes="120px"
+                      />
+                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors" />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Contact form */}
             <div className="border border-border/50 bg-muted/30 rounded-2xl p-5 sm:p-6 space-y-4">
-              <h3 className="font-bold text-sm tracking-wide text-foreground uppercase">
-                {isPaid ? "Unlock E-Book" : "Get Free Access"}
+              <h3 className="font-bold text-sm tracking-wide text-black dark:text-white uppercase">
+                {isPaid ? "Download E-Book" : "Get Free Access"}
               </h3>
 
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-1.5">
-                    <Label htmlFor="cust-email" className="text-xs font-semibold text-muted-foreground">Email Address</Label>
+                    <Label htmlFor="cust-email" className="text-xs font-semibold text-neutral-600 dark:text-neutral-400">Email Address</Label>
                     <Input
                       id="cust-email"
                       type="email"
@@ -266,7 +292,7 @@ export default function BookDetailsPage() {
                     />
                   </div>
                   <div className="space-y-1.5">
-                    <Label htmlFor="cust-phone" className="text-xs font-semibold text-muted-foreground">Phone Number</Label>
+                    <Label htmlFor="cust-phone" className="text-xs font-semibold text-neutral-600 dark:text-neutral-400">Phone Number</Label>
                     <Input
                       id="cust-phone"
                       type="tel"
@@ -302,7 +328,7 @@ export default function BookDetailsPage() {
               </form>
 
               {isPaid && (
-                <div className="flex items-center justify-center gap-1.5 text-[10px] text-muted-foreground">
+                <div className="flex items-center justify-center gap-1.5 text-[10px] text-neutral-500 dark:text-neutral-400">
                   <ShieldCheck className="size-3.5 text-emerald-500" />
                   <span>Secure checkout powered by Razorpay.</span>
                 </div>
@@ -314,6 +340,24 @@ export default function BookDetailsPage() {
         </div>
         
       </div>
+
+      {/* Fullscreen Preview Lightbox */}
+      {previewOpen && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm cursor-pointer"
+          onClick={() => setPreviewOpen(null)}
+        >
+          <div className="relative max-w-lg w-full max-h-[90vh] mx-4">
+            <Image
+              src={previewOpen}
+              alt="Preview page"
+              width={600}
+              height={800}
+              className="w-full h-auto rounded-xl shadow-2xl object-contain"
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

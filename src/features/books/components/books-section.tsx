@@ -65,6 +65,11 @@ export function BooksSection() {
               onClick={() => setSelectedBook(book)}
               className="group relative flex flex-col items-center justify-center overflow-hidden rounded-xl border border-border bg-card p-6 text-center transition-all hover:bg-muted/50"
             >
+              {book.price > 0 && (
+                <span className="absolute top-3 right-3 z-10 rounded-full bg-emerald-500 px-2.5 py-0.5 text-[10px] sm:text-xs font-bold text-white shadow-sm tracking-wide">
+                  ₹{book.price.toLocaleString("en-IN")}
+                </span>
+              )}
               {book.thumbnail_url ? (
                 <div className="relative mb-4 h-32 w-24 overflow-hidden rounded shadow-sm border border-border">
                   <Image
@@ -73,6 +78,7 @@ export function BooksSection() {
                     fill
                     className="object-cover"
                     sizes="96px"
+                    priority
                   />
                 </div>
               ) : (
@@ -82,7 +88,7 @@ export function BooksSection() {
               )}
               <h3 className="font-medium">{book.title}</h3>
               <div className="mt-4 flex items-center gap-2 text-sm font-medium text-blue-500 opacity-0 transition-opacity group-hover:opacity-100">
-                Download <ArrowRightIcon className="size-4" />
+                {book.price > 0 ? "Buy Now" : "Download"} <ArrowRightIcon className="size-4" />
               </div>
             </button>
           ))}

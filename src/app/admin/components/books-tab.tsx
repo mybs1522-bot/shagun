@@ -38,6 +38,8 @@ const EMPTY_FORM = {
   link: "",
   display_order: 0,
   is_active: true,
+  price: 0,
+  pdf_url: "",
 };
 
 export function BooksTab() {
@@ -137,6 +139,8 @@ export function BooksTab() {
               <TableHead className="w-16">Thumbnail</TableHead>
               <TableHead>Title</TableHead>
               <TableHead>Link</TableHead>
+              <TableHead>Price</TableHead>
+              <TableHead>PDF Link</TableHead>
               <TableHead className="text-center">Status</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
@@ -163,9 +167,21 @@ export function BooksTab() {
                 </TableCell>
                 <TableCell className="font-medium">{book.title}</TableCell>
                 <TableCell>
-                  <a href={book.link} target="_blank" rel="noreferrer" className="text-blue-500 hover:underline max-w-[200px] truncate block">
+                  <a href={book.link} target="_blank" rel="noreferrer" className="text-blue-500 hover:underline max-w-[150px] truncate block">
                     {book.link}
                   </a>
+                </TableCell>
+                <TableCell className="font-medium text-emerald-600 dark:text-emerald-400">
+                  {book.price > 0 ? `₹${book.price}` : "Free"}
+                </TableCell>
+                <TableCell>
+                  {book.pdf_url ? (
+                    <a href={book.pdf_url} target="_blank" rel="noreferrer" className="text-blue-500 hover:underline max-w-[150px] truncate block">
+                      {book.pdf_url}
+                    </a>
+                  ) : (
+                    <span className="text-muted-foreground italic text-xs">No PDF</span>
+                  )}
                 </TableCell>
                 <TableCell className="text-center">
                   <Badge
@@ -274,6 +290,8 @@ function BookDialog({
         link: book.link,
         display_order: book.display_order,
         is_active: book.is_active,
+        price: book.price ?? 0,
+        pdf_url: book.pdf_url ?? "",
       });
     } else {
       setForm(EMPTY_FORM);
@@ -298,6 +316,8 @@ function BookDialog({
       link: form.link.trim(),
       display_order: form.display_order,
       is_active: form.is_active,
+      price: Number(form.price) || 0,
+      pdf_url: form.pdf_url?.trim() || null,
     };
 
     let error;
@@ -362,13 +382,37 @@ function BookDialog({
             />
           </div>
 
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="bk-price">Price (₹)</Label>
+              <Input
+                id="bk-price"
+                type="number"
+                min="0"
+                value={form.price}
+                onChange={(e) => updateField("price", parseFloat(e.target.value) || 0)}
+                placeholder="0 for Free"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="bk-order">Display Order</Label>
+              <Input
+                id="bk-order"
+                type="number"
+                value={form.display_order}
+                onChange={(e) => updateField("display_order", parseInt(e.target.value) || 0)}
+              />
+            </div>
+          </div>
+
           <div className="space-y-2">
-            <Label htmlFor="bk-order">Display Order</Label>
+            <Label htmlFor="bk-pdf">PDF File URL (For post-payment download)</Label>
             <Input
-              id="bk-order"
-              type="number"
-              value={form.display_order}
-              onChange={(e) => updateField("display_order", parseInt(e.target.value) || 0)}
+              id="bk-pdf"
+              type="url"
+              value={form.pdf_url}
+              onChange={(e) => updateField("pdf_url", e.target.value)}
+              placeholder="https://example.com/downloadable-book.pdf"
             />
           </div>
 

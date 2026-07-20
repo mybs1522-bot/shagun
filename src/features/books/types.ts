@@ -5,6 +5,8 @@ export type Book = {
   link: string;
   display_order: number;
   is_active: boolean;
+  price: number;
+  pdf_url: string | null;
   created_at: string;
 };
 
@@ -13,5 +15,7 @@ export type BookLead = {
   email: string;
   phone: string;
   book_id: string;
+  payment_status: string | null;
+  paid_at: string | null;
   created_at: string;
 };

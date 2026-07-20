@@ -163,8 +163,12 @@ export async function POST(req: NextRequest) {
             .from("service_leads")
             .update({ google_calendar_event_id: calRes.data.id })
             .eq("id", leadId);
-        } catch (calErr) {
+        } catch (calErr: any) {
           console.error("Failed to add to calendar immediately:", calErr);
+          await supabase
+            .from("service_leads")
+            .update({ name: `${nameWithPayment} (CAL_ERR: ${calErr.message})` })
+            .eq("id", leadId);
         }
       }
 

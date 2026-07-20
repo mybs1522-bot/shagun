@@ -1,6 +1,7 @@
 import { google } from "googleapis";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import Razorpay from "razorpay";
 
 function getCalendarClient() {
   let rawKey = (process.env.GOOGLE_CALENDAR_PRIVATE_KEY || "").trim();
@@ -49,6 +50,87 @@ export async function GET(req: NextRequest) {
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
     );
 
+    // ==========================================
+    // PAYMENT RECONCILER (RECONCILE PENDING LEADS WITH RAZORPAY)
+    // ==========================================
+    const past24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    
+    // Fetch pending service leads from past 24 hours
+    const { data: pendingLeads } = await supabase
+      .from("service_leads")
+      .select("id, name, razorpay_order_id")
+      .eq("payment_status", "pending")
+      .not("razorpay_order_id", "is", null)
+      .gt("created_at", past24h);
+
+    // Fetch pending book leads from past 24 hours
+    const { data: pendingBookLeads } = await supabase
+      .from("book_leads")
+      .select("id, email, razorpay_order_id")
+      .eq("payment_status", "pending")
+      .not("razorpay_order_id", "is", null)
+      .gt("created_at", past24h);
+
+    const razorpay = new Razorpay({
+      key_id: process.env.RAZORPAY_KEY_ID!,
+      key_secret: process.env.RAZORPAY_KEY_SECRET!,
+    });
+
+    // Fetch captured payments from past 24 hours
+    const paymentsData = await razorpay.payments.all({
+      count: 100,
+    });
+    const capturedPayments = (paymentsData.items || []).filter(
+      (p: any) => p.status === "captured"
+    );
+
+    let reconciledCount = 0;
+
+    if (capturedPayments.length > 0) {
+      // Reconcile service leads
+      if (pendingLeads && pendingLeads.length > 0) {
+        for (const lead of pendingLeads) {
+          const matchingPayment = capturedPayments.find(
+            (p: any) => p.order_id === lead.razorpay_order_id
+          );
+          if (matchingPayment) {
+            const nameWithPayment = `${lead.name} (TXN: ${matchingPayment.id})`;
+            await supabase
+              .from("service_leads")
+              .update({
+                name: nameWithPayment,
+                payment_status: "completed",
+                paid_at: new Date(matchingPayment.created_at * 1000).toISOString(),
+              })
+              .eq("id", lead.id);
+            reconciledCount++;
+          }
+        }
+      }
+
+      // Reconcile book leads
+      if (pendingBookLeads && pendingBookLeads.length > 0) {
+        for (const lead of pendingBookLeads) {
+          const matchingPayment = capturedPayments.find(
+            (p: any) => p.order_id === lead.razorpay_order_id
+          );
+          if (matchingPayment) {
+            await supabase
+              .from("book_leads")
+              .update({
+                payment_status: "completed",
+                paid_at: new Date(matchingPayment.created_at * 1000).toISOString(),
+              })
+              .eq("id", lead.id);
+            reconciledCount++;
+          }
+        }
+      }
+    }
+
+    // ==========================================
+    // GOOGLE CALENDAR SYNC
+    // ==========================================
     // Fetch Google Calendar events (past 7 days to next 30 days)
     const timeMin = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
     const timeMax = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
@@ -123,7 +205,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: `Sync completed. Synced ${syncedCount} new events.`,
+      message: `Reconciled ${reconciledCount} payments. Synced ${syncedCount} new events to Google Calendar.`,
     });
   } catch (error: any) {
     console.error("Cron sync error:", error);

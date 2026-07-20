@@ -111,6 +111,12 @@ export default function BookDetailsPage() {
         
         if (!res.ok) throw new Error(data.error);
 
+        // Save order_id to database lead
+        await supabase
+          .from("book_leads")
+          .update({ razorpay_order_id: data.orderId })
+          .eq("id", leadId);
+
         const options = {
           key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
           amount: book.price * 100,

@@ -235,6 +235,12 @@ export function ServiceDialog({
         
         if (!res.ok) throw new Error(data.error);
 
+        // Save order_id to database lead
+        await supabase
+          .from("service_leads")
+          .update({ razorpay_order_id: data.orderId })
+          .eq("id", leadId);
+
         const options = {
           key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
           amount: service.amount * 100,

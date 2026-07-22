@@ -40,8 +40,17 @@ export async function Services() {
   const grouped = groupByCategory(services);
 
   return (
-    <Panel id="services" className="scroll-mt-22">
-      <div className="p-4">
+    <Panel id="services" className="relative scroll-mt-22 overflow-hidden">
+      {/* Architectural Sofa Sketch Backdrop Watermark */}
+      <div
+        className="pointer-events-none absolute inset-0 z-0 bg-contain bg-bottom bg-no-repeat opacity-15 dark:opacity-20 dark:invert mix-blend-multiply dark:mix-blend-screen"
+        style={{
+          backgroundImage: "url('/images/sofa-backdrop.png')",
+          backgroundPosition: "bottom right",
+          backgroundSize: "80% auto",
+        }}
+      />
+      <div className="relative z-10 p-4">
         {Object.entries(grouped).map(([category, items], groupIndex) => (
           <div key={category} className={groupIndex > 0 ? "mt-6" : ""}>
             <p className="mb-4 flex items-center gap-2 text-base font-bold uppercase tracking-wider text-foreground">

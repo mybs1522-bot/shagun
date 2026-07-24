@@ -74,11 +74,8 @@ export function ServiceDialog({
 }) {
   const titleLower = service?.title.toLowerCase() || "";
   const categoryLower = service?.category.toLowerCase() || "";
-  const isConsultation =
-    titleLower.includes("ar shagun") ||
-    titleLower.includes("google meet") ||
-    titleLower.includes("free call") ||
-    titleLower.includes("support team");
+  // All services require calendar date & time selection for appointment booking
+  const isConsultation = true;
 
   const [step, setStep] = useState<1 | 2>(1);
   const [selectedDate, setSelectedDate] = useState<dayjs.Dayjs | null>(null);
@@ -361,17 +358,8 @@ export function ServiceDialog({
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="relative max-w-[92vw] sm:max-w-md max-h-[85vh] overflow-hidden flex flex-col">
-        {/* Architectural Sofa Sketch Backdrop Watermark */}
-        <div
-          className="pointer-events-none absolute inset-0 z-0 bg-contain bg-bottom bg-no-repeat opacity-10 dark:opacity-15 dark:invert mix-blend-multiply dark:mix-blend-screen"
-          style={{
-            backgroundImage: "url('/images/sofa-backdrop.png')",
-            backgroundPosition: "bottom right",
-            backgroundSize: "85% auto",
-          }}
-        />
-        <DialogHeader className="relative z-10">
+      <DialogContent className="max-w-[92vw] sm:max-w-md max-h-[85vh] overflow-hidden flex flex-col">
+        <DialogHeader>
           <div className="relative flex items-center justify-center py-1">
             {step === 2 && isConsultation && (
               <Button
@@ -422,7 +410,7 @@ export function ServiceDialog({
         </DialogHeader>
 
         {step === 1 && isConsultation ? (
-          <div className="relative z-10 flex-1 overflow-y-auto min-h-0 space-y-5 pb-2">
+          <div className="flex-1 overflow-y-auto min-h-0 space-y-5 pb-2">
             {/* Date Selection */}
             <div className="space-y-2">
               <div className="flex items-center justify-center">
@@ -540,7 +528,7 @@ export function ServiceDialog({
         ) : (
           <form
             onSubmit={handleSubmit}
-            className="relative z-10 flex-1 overflow-y-auto min-h-0 space-y-5 pb-2"
+            className="flex-1 overflow-y-auto min-h-0 space-y-5 pb-2"
           >
             <div className="space-y-2">
               <Label htmlFor="service-name">Full Name</Label>

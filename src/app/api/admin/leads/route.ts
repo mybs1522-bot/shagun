@@ -17,10 +17,11 @@ export const LEAD_STATUS_OPTIONS: LeadStatus[] = [
   "Closed",
 ];
 
-// Persistent in-memory store for lead statuses, notes, money received, and deadline dates
+// Persistent in-memory store for lead statuses, notes, money received, total invoice, and deadline dates
 const memoryStatusStore = new Map<string, LeadStatus>();
 const memoryNotesStore = new Map<string, any[]>();
 const memoryMoneyStore = new Map<string, number>();
+const memoryInvoiceStore = new Map<string, number>();
 const memoryDeadlineStore = new Map<string, string>();
 
 export async function GET() {
@@ -41,25 +42,36 @@ export async function GET() {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    // Overlay in-memory status, notes, money received, and deadline dates
+    // Overlay in-memory status, notes, money received, total invoice, and deadline dates
     const leads = (data || []).map((lead: any) => {
       const memStatus = memoryStatusStore.get(lead.id);
       const memNotes = memoryNotesStore.get(lead.id);
       const memMoney = memoryMoneyStore.get(lead.id);
+      const memInvoice = memoryInvoiceStore.get(lead.id);
       const memDeadline = memoryDeadlineStore.get(lead.id);
+
+      const defaultMoney =
+        memMoney !== undefined
+          ? memMoney
+          : lead.money_received !== undefined && lead.money_received !== null
+          ? parseFloat(lead.money_received)
+          : lead.payment_status === "completed"
+          ? 999
+          : 0;
+
+      const defaultInvoice =
+        memInvoice !== undefined
+          ? memInvoice
+          : lead.total_invoice !== undefined && lead.total_invoice !== null
+          ? parseFloat(lead.total_invoice)
+          : defaultMoney;
 
       return {
         ...lead,
         lead_status: memStatus || lead.lead_status || "Follow Up Again",
         notes_json: memNotes || lead.notes_json || [],
-        money_received:
-          memMoney !== undefined
-            ? memMoney
-            : lead.money_received !== undefined && lead.money_received !== null
-            ? parseFloat(lead.money_received)
-            : lead.payment_status === "completed"
-            ? 999
-            : 0,
+        money_received: defaultMoney,
+        total_invoice: defaultInvoice,
         deadline_date: memDeadline || lead.deadline_date || null,
       };
     });
@@ -74,7 +86,17 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { action, leadId, status, noteText, author, moneyReceived, deadlineDate, leadData } = body;
+    const {
+      action,
+      leadId,
+      status,
+      noteText,
+      author,
+      moneyReceived,
+      totalInvoice,
+      deadlineDate,
+      leadData,
+    } = body;
     const supabaseAdmin = getSupabaseAdmin();
 
     if (action === "update_status") {
@@ -124,6 +146,26 @@ export async function POST(req: NextRequest) {
       }
 
       return NextResponse.json({ success: true, money_received: numMoney });
+    }
+
+    if (action === "update_invoice") {
+      if (!leadId) {
+        return NextResponse.json({ error: "leadId is required" }, { status: 400 });
+      }
+
+      const numInvoice = typeof totalInvoice === "number" ? totalInvoice : parseFloat(totalInvoice || "0");
+      memoryInvoiceStore.set(leadId, numInvoice);
+
+      try {
+        await supabaseAdmin
+          .from("service_leads")
+          .update({ total_invoice: numInvoice })
+          .eq("id", leadId);
+      } catch (err) {
+        console.warn("DB update skipped for total_invoice, saved to memory store:", err);
+      }
+
+      return NextResponse.json({ success: true, total_invoice: numInvoice });
     }
 
     if (action === "update_deadline") {
@@ -218,9 +260,12 @@ export async function POST(req: NextRequest) {
       }
 
       const numMoney = parseFloat(leadData?.moneyReceived || "0");
+      const numInvoice = parseFloat(leadData?.totalInvoice || leadData?.moneyReceived || "0");
+
       memoryStatusStore.set(newId, leadData?.status || "Follow Up Again");
       memoryNotesStore.set(newId, initialNotes);
       memoryMoneyStore.set(newId, numMoney);
+      memoryInvoiceStore.set(newId, numInvoice);
       memoryDeadlineStore.set(newId, leadData?.deadlineDate || "");
 
       try {
@@ -234,6 +279,7 @@ export async function POST(req: NextRequest) {
             lead_status: leadData?.status || "Follow Up Again",
             notes_json: JSON.stringify(initialNotes),
             money_received: numMoney,
+            total_invoice: numInvoice,
             deadline_date: leadData?.deadlineDate || null,
             created_at: nowISO,
           });
@@ -251,6 +297,7 @@ export async function POST(req: NextRequest) {
           lead_status: leadData?.status || "Follow Up Again",
           notes_json: initialNotes,
           money_received: numMoney,
+          total_invoice: numInvoice,
           deadline_date: leadData?.deadlineDate || null,
           created_at: nowISO,
         },

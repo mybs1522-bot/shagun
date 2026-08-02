@@ -412,14 +412,13 @@ export function ServiceLeadsTab() {
     }
   };
 
-  // Calculate Total Money Received across all leads
+  // Calculate Total Money Received across all leads (only for completed payments)
   const totalMoneyReceived = leads.reduce((sum, l) => {
+    if (l.payment_status !== "completed") return sum;
     const val =
       l.money_received !== undefined && l.money_received !== null
         ? l.money_received
-        : l.payment_status === "completed"
-        ? 999
-        : 0;
+        : 999;
     return sum + (typeof val === "number" ? val : parseFloat(val || "0"));
   }, 0);
 
@@ -647,12 +646,13 @@ export function ServiceLeadsTab() {
           <Table className="w-full">
             <TableHeader>
               <TableRow className="bg-muted/50">
-                <TableHead className="min-w-[200px]">Client &amp; Service</TableHead>
+                <TableHead className="min-w-[190px]">Client &amp; Service</TableHead>
                 <TableHead className="min-w-[130px]">Appointment</TableHead>
-                <TableHead className="min-w-[150px]">Money Received (₹ Entry)</TableHead>
-                <TableHead className="min-w-[150px]">Deadline Date</TableHead>
-                <TableHead className="min-w-[160px]">Status (Select)</TableHead>
-                <TableHead className="text-right min-w-[110px]">Notes</TableHead>
+                <TableHead className="min-w-[110px]">Payment</TableHead>
+                <TableHead className="min-w-[140px]">Money Received (₹)</TableHead>
+                <TableHead className="min-w-[140px]">Deadline Date</TableHead>
+                <TableHead className="min-w-[150px]">Status (Select)</TableHead>
+                <TableHead className="text-right min-w-[100px]">Notes</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -660,6 +660,7 @@ export function ServiceLeadsTab() {
                 const status = getLeadStatus(lead);
                 const notesList = getNotes(lead);
                 const isExpanded = !!expandedNotes[lead.id];
+                const isPaid = lead.payment_status === "completed";
                 const moneyVal = moneyInputs[lead.id] ?? String(lead.money_received ?? 0);
                 const deadlineVal = deadlineInputs[lead.id] ?? lead.deadline_date ?? "";
                 const isMoneySaved = !!savedSuccess[`m_${lead.id}`];
@@ -704,66 +705,89 @@ export function ServiceLeadsTab() {
                         )}
                       </TableCell>
 
-                      {/* Money Received Entry Box */}
+                      {/* Payment Status Badge */}
                       <TableCell className="py-3">
-                        <div className="flex items-center gap-1.5">
-                          <div className="relative flex items-center flex-1">
-                            <span className="absolute left-2 text-xs font-bold text-emerald-500">₹</span>
-                            <input
-                              type="number"
-                              placeholder="0"
-                              value={moneyVal}
-                              onChange={(e) =>
-                                setMoneyInputs({
-                                  ...moneyInputs,
-                                  [lead.id]: e.target.value,
-                                })
-                              }
-                              className="w-full rounded-md border border-input bg-background pl-6 pr-2 py-1 text-xs font-bold text-foreground outline-none focus:ring-1 focus:ring-primary"
-                            />
-                          </div>
-
-                          <Button
-                            size="icon"
-                            variant="outline"
-                            onClick={() => handleSaveMoney(lead.id)}
-                            disabled={actionLoading === `money_${lead.id}`}
-                            className="size-7 shrink-0 text-emerald-500 hover:text-emerald-400"
-                            title="Save Money Received"
-                          >
-                            {actionLoading === `money_${lead.id}` ? (
-                              <Loader2 className="size-3.5 animate-spin" />
-                            ) : isMoneySaved ? (
-                              <Check className="size-3.5 text-emerald-400" />
-                            ) : (
-                              <Save className="size-3.5" />
-                            )}
-                          </Button>
-                        </div>
+                        {isPaid ? (
+                          <span className="inline-flex items-center rounded-md bg-emerald-500/20 px-2 py-0.5 text-xs font-semibold text-emerald-400 border border-emerald-500/30">
+                            Completed
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center rounded-md bg-amber-500/20 px-2 py-0.5 text-xs font-semibold text-amber-400 border border-amber-500/30">
+                            Pending
+                          </span>
+                        )}
                       </TableCell>
 
-                      {/* Deadline Date Entry */}
+                      {/* Money Received Entry Box (ONLY SHOWN WHEN PAYMENT IS COMPLETED) */}
                       <TableCell className="py-3">
-                        <div className="flex items-center gap-1.5">
-                          <input
-                            type="date"
-                            value={deadlineVal}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              setDeadlineInputs({ ...deadlineInputs, [lead.id]: val });
-                              handleSaveDeadline(lead.id, val);
-                            }}
-                            className="w-full rounded-md border border-input bg-background px-2 py-1 text-xs font-medium text-foreground outline-none focus:ring-1 focus:ring-primary cursor-pointer"
-                          />
-                          {isDeadlineSaved && (
-                            <Check className="size-3.5 text-emerald-400 shrink-0" />
-                          )}
-                        </div>
-                        {deadlineVal && (
-                          <div className="text-[10px] text-amber-500 font-medium mt-1 flex items-center gap-1">
-                            <Calendar className="size-3 shrink-0" />
-                            Target: {dayjs(deadlineVal).format("MMM D, YYYY")}
+                        {isPaid ? (
+                          <div className="flex items-center gap-1.5">
+                            <div className="relative flex items-center flex-1">
+                              <span className="absolute left-2 text-xs font-bold text-emerald-500">₹</span>
+                              <input
+                                type="number"
+                                placeholder="0"
+                                value={moneyVal}
+                                onChange={(e) =>
+                                  setMoneyInputs({
+                                    ...moneyInputs,
+                                    [lead.id]: e.target.value,
+                                  })
+                                }
+                                className="w-full rounded-md border border-input bg-background pl-6 pr-2 py-1 text-xs font-bold text-foreground outline-none focus:ring-1 focus:ring-primary"
+                              />
+                            </div>
+
+                            <Button
+                              size="icon"
+                              variant="outline"
+                              onClick={() => handleSaveMoney(lead.id)}
+                              disabled={actionLoading === `money_${lead.id}`}
+                              className="size-7 shrink-0 text-emerald-500 hover:text-emerald-400"
+                              title="Save Money Received"
+                            >
+                              {actionLoading === `money_${lead.id}` ? (
+                                <Loader2 className="size-3.5 animate-spin" />
+                              ) : isMoneySaved ? (
+                                <Check className="size-3.5 text-emerald-400" />
+                              ) : (
+                                <Save className="size-3.5" />
+                              )}
+                            </Button>
                           </div>
+                        ) : (
+                          <span className="text-muted-foreground text-xs font-medium italic">—</span>
+                        )}
+                      </TableCell>
+
+                      {/* Deadline Date Entry (ONLY SHOWN WHEN PAYMENT IS COMPLETED) */}
+                      <TableCell className="py-3">
+                        {isPaid ? (
+                          <>
+                            <div className="flex items-center gap-1.5">
+                              <input
+                                type="date"
+                                value={deadlineVal}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setDeadlineInputs({ ...deadlineInputs, [lead.id]: val });
+                                  handleSaveDeadline(lead.id, val);
+                                }}
+                                className="w-full rounded-md border border-input bg-background px-2 py-1 text-xs font-medium text-foreground outline-none focus:ring-1 focus:ring-primary cursor-pointer"
+                              />
+                              {isDeadlineSaved && (
+                                <Check className="size-3.5 text-emerald-400 shrink-0" />
+                              )}
+                            </div>
+                            {deadlineVal && (
+                              <div className="text-[10px] text-amber-500 font-medium mt-1 flex items-center gap-1">
+                                <Calendar className="size-3 shrink-0" />
+                                Target: {dayjs(deadlineVal).format("MMM D, YYYY")}
+                              </div>
+                            )}
+                          </>
+                        ) : (
+                          <span className="text-muted-foreground text-xs font-medium italic">—</span>
                         )}
                       </TableCell>
 
@@ -818,7 +842,7 @@ export function ServiceLeadsTab() {
                     {/* EXPANDABLE INLINE FULL-WIDTH NOTES LOGGER ROW */}
                     {isExpanded && (
                       <TableRow className="bg-muted/30 border-b border-border">
-                        <TableCell colSpan={6} className="p-4">
+                        <TableCell colSpan={7} className="p-4">
                           <div className="rounded-xl border border-border bg-card p-4 space-y-4 shadow-sm">
                             <div className="flex items-center justify-between border-b border-border pb-2">
                               <div className="flex items-center gap-2">

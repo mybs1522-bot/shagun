@@ -21,6 +21,7 @@ import {
   IndianRupee,
   Save,
   Check,
+  MessageCircle,
 } from "lucide-react";
 import React, { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -80,6 +81,15 @@ export type ServiceLead = {
 function formatLogTimestamp(isoStr: string): string {
   const d = dayjs(isoStr);
   return d.format("ddd, MMM D, YYYY [at] h:mm A");
+}
+
+function getWhatsAppUrl(phone: string) {
+  let cleaned = phone.replace(/\D/g, "");
+  if (cleaned.length === 10) {
+    cleaned = "91" + cleaned;
+  }
+  const msg = `Hi, Ar Shagun this side, you tried to make a consultation booking for your space, did you faced any issue or you want to understand something before going forward with consultation and designing services?`;
+  return `https://wa.me/${cleaned}?text=${encodeURIComponent(msg)}`;
 }
 
 export function ServiceLeadsTab() {
@@ -646,9 +656,9 @@ export function ServiceLeadsTab() {
           <Table className="w-full">
             <TableHeader>
               <TableRow className="bg-muted/50">
-                <TableHead className="min-w-[190px]">Client &amp; Service</TableHead>
+                <TableHead className="min-w-[200px]">Client &amp; Service</TableHead>
                 <TableHead className="min-w-[130px]">Appointment</TableHead>
-                <TableHead className="min-w-[110px]">Payment</TableHead>
+                <TableHead className="min-w-[140px]">Payment Status</TableHead>
                 <TableHead className="min-w-[140px]">Money Received (₹)</TableHead>
                 <TableHead className="min-w-[140px]">Deadline Date</TableHead>
                 <TableHead className="min-w-[150px]">Status (Select)</TableHead>
@@ -665,6 +675,7 @@ export function ServiceLeadsTab() {
                 const deadlineVal = deadlineInputs[lead.id] ?? lead.deadline_date ?? "";
                 const isMoneySaved = !!savedSuccess[`m_${lead.id}`];
                 const isDeadlineSaved = !!savedSuccess[`d_${lead.id}`];
+                const waUrl = getWhatsAppUrl(lead.phone);
 
                 return (
                   <React.Fragment key={lead.id}>
@@ -674,7 +685,7 @@ export function ServiceLeadsTab() {
                         <div className="font-semibold text-sm text-foreground">
                           {lead.services?.title || "Consultation Service"}
                         </div>
-                        <div className="flex items-center gap-1.5 mt-1 text-xs text-muted-foreground">
+                        <div className="flex items-center gap-1.5 mt-1 text-xs text-muted-foreground flex-wrap">
                           <span className="font-medium text-foreground">{lead.name}</span>
                           <span>•</span>
                           <Phone className="size-3 text-muted-foreground shrink-0" />
@@ -705,16 +716,32 @@ export function ServiceLeadsTab() {
                         )}
                       </TableCell>
 
-                      {/* Payment Status Badge */}
+                      {/* Payment Status Badge & WhatsApp Follow Up Button */}
                       <TableCell className="py-3">
                         {isPaid ? (
-                          <span className="inline-flex items-center rounded-md bg-emerald-500/20 px-2 py-0.5 text-xs font-semibold text-emerald-400 border border-emerald-500/30">
+                          <span className="inline-flex items-center rounded-md bg-emerald-500/20 px-2.5 py-1 text-xs font-semibold text-emerald-400 border border-emerald-500/30">
                             Completed
                           </span>
                         ) : (
-                          <span className="inline-flex items-center rounded-md bg-amber-500/20 px-2 py-0.5 text-xs font-semibold text-amber-400 border border-amber-500/30">
-                            Pending
-                          </span>
+                          <div className="space-y-1.5">
+                            <span className="inline-flex items-center rounded-md bg-amber-500/20 px-2.5 py-0.5 text-xs font-semibold text-amber-400 border border-amber-500/30">
+                              Pending
+                            </span>
+
+                            {/* 1-CLICK WHATSAPP FOLLOW UP BUTTON FOR PENDING ORDERS */}
+                            <div>
+                              <a
+                                href={waUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 px-2.5 py-1 text-[11px] font-bold text-white shadow-sm transition-all hover:scale-[1.02]"
+                                title="Click to open WhatsApp with pre-filled follow up message"
+                              >
+                                <MessageCircle className="size-3.5 fill-white text-emerald-600" />
+                                WhatsApp Follow Up
+                              </a>
+                            </div>
+                          </div>
                         )}
                       </TableCell>
 

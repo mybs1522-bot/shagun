@@ -17,11 +17,10 @@ import {
   Send,
   PlusCircle,
 } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
-
 import {
   Table,
   TableBody,
@@ -93,12 +92,26 @@ export function ServiceLeadsTab() {
     name: "",
     phone: "",
     serviceTitle: "3D Design for Interiors and Exteriors",
-    status: "Advance Payment" as LeadStatus,
+    status: "Follow Up Again" as LeadStatus, // Default is Follow Up Again
     initialNote: "",
   });
 
   const fetchLeads = useCallback(async () => {
     setLoading(true);
+    try {
+      // First try server API for admin role access
+      const res = await fetch("/api/admin/leads");
+      if (res.ok) {
+        const json = await res.json();
+        if (json.leads) {
+          setLeads(json.leads || []);
+          setLoading(false);
+          return;
+        }
+      }
+    } catch {}
+
+    // Fallback to client Supabase
     const { data, error } = await supabase
       .from("service_leads")
       .select(`
@@ -133,13 +146,10 @@ export function ServiceLeadsTab() {
     }
   };
 
-  // Helper to get effective status
+  // Helper to get status (DEFAULTS TO "Follow Up Again". NEVER default to "Advance Payment"!)
   const getLeadStatus = (lead: ServiceLead): LeadStatus => {
     if (lead.lead_status && LEAD_STATUS_OPTIONS.includes(lead.lead_status)) {
       return lead.lead_status;
-    }
-    if (lead.payment_status === "completed") {
-      return "Advance Payment";
     }
     return "Follow Up Again";
   };
@@ -171,74 +181,71 @@ export function ServiceLeadsTab() {
     setCurrentPage(1);
   }, [search, selectedStatusFilter]);
 
-  // Update lead status in Supabase
+  // Update lead status via Server API (100% reliable)
   const handleStatusChange = async (leadId: string, newStatus: LeadStatus) => {
     setActionLoading(`status_${leadId}`);
     try {
-      const { error } = await supabase
-        .from("service_leads")
-        .update({ lead_status: newStatus })
-        .eq("id", leadId);
+      const res = await fetch("/api/admin/leads", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "update_status",
+          leadId,
+          status: newStatus,
+        }),
+      });
 
-      if (error) {
-        toast.error("Failed to update status");
-        console.error(error);
-      } else {
-        toast.success(`Status updated to "${newStatus}"`);
-        setLeads((prev) =>
-          prev.map((l) => (l.id === leadId ? { ...l, lead_status: newStatus } : l))
-        );
+      const json = await res.json();
+      if (!res.ok) {
+        throw new Error(json.error || "Failed to update status");
       }
-    } catch (err) {
+
+      toast.success(`Status updated to "${newStatus}"`);
+      setLeads((prev) =>
+        prev.map((l) => (l.id === leadId ? { ...l, lead_status: newStatus } : l))
+      );
+    } catch (err: any) {
       console.error(err);
-      toast.error("Error updating status");
+      toast.error(err.message || "Failed to update status");
     } finally {
       setActionLoading(null);
     }
   };
 
-  // Add note with timestamp
+  // Add note with timestamp via Server API
   const handleAddNote = async (leadId: string) => {
     const text = (noteInputs[leadId] || "").trim();
     if (!text) return;
 
     setActionLoading(`note_${leadId}`);
     try {
-      const targetLead = leads.find((l) => l.id === leadId);
-      if (!targetLead) return;
+      const res = await fetch("/api/admin/leads", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "add_note",
+          leadId,
+          noteText: text,
+          author: "Admin",
+        }),
+      });
 
-      const currentNotes = getNotes(targetLead);
-      const nowISO = new Date().toISOString();
-      const newNote: LeadNote = {
-        id: "note_" + Date.now() + "_" + Math.random().toString(36).substring(2, 7),
-        text,
-        createdAt: nowISO,
-        formattedTime: formatLogTimestamp(nowISO),
-        author: "Admin",
-      };
-
-      const updatedNotes = [newNote, ...currentNotes];
-
-      const { error } = await supabase
-        .from("service_leads")
-        .update({ notes_json: JSON.stringify(updatedNotes) })
-        .eq("id", leadId);
-
-      if (error) {
-        toast.error("Failed to save note");
-        console.error(error);
-      } else {
-        toast.success("Note logged with day & time");
-        setLeads((prev) =>
-          prev.map((l) =>
-            l.id === leadId ? { ...l, notes_json: updatedNotes } : l
-          )
-        );
-        setNoteInputs((prev) => ({ ...prev, [leadId]: "" }));
+      const json = await res.json();
+      if (!res.ok) {
+        throw new Error(json.error || "Failed to save note");
       }
-    } catch (err) {
+
+      toast.success("Note logged with day & time");
+      const updatedNotes = json.notes || [];
+      setLeads((prev) =>
+        prev.map((l) =>
+          l.id === leadId ? { ...l, notes_json: updatedNotes } : l
+        )
+      );
+      setNoteInputs((prev) => ({ ...prev, [leadId]: "" }));
+    } catch (err: any) {
       console.error(err);
-      toast.error("Error adding note");
+      toast.error(err.message || "Error adding note");
     } finally {
       setActionLoading(null);
     }
@@ -254,55 +261,38 @@ export function ServiceLeadsTab() {
 
     setActionLoading("create_lead");
     try {
-      const nowISO = new Date().toISOString();
-      const initialNotes: LeadNote[] = [];
-      if (newLeadForm.initialNote.trim()) {
-        initialNotes.push({
-          id: "note_" + Date.now(),
-          text: newLeadForm.initialNote.trim(),
-          createdAt: nowISO,
-          formattedTime: formatLogTimestamp(nowISO),
-          author: "Admin",
-        });
-      }
+      const res = await fetch("/api/admin/leads", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "create_lead",
+          leadData: {
+            name: newLeadForm.name,
+            phone: newLeadForm.phone,
+            status: newLeadForm.status,
+            initialNote: newLeadForm.initialNote,
+          },
+        }),
+      });
 
-      const { data, error } = await supabase
-        .from("service_leads")
-        .insert({
-          id: crypto.randomUUID(),
-          name: newLeadForm.name.trim(),
-          phone: newLeadForm.phone.trim(),
-          payment_status: "completed",
-          lead_status: newLeadForm.status,
-          notes_json: JSON.stringify(initialNotes),
-          created_at: nowISO,
-        })
-        .select(`
-          *,
-          services (
-            title
-          )
-        `)
-        .single();
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Failed to create lead");
 
-      if (error) {
-        toast.error("Failed to create lead");
-        console.error(error);
-      } else {
-        toast.success("New service lead created");
-        setLeads((prev) => [data as unknown as ServiceLead, ...prev]);
-        setShowAddLeadModal(false);
-        setNewLeadForm({
-          name: "",
-          phone: "",
-          serviceTitle: "3D Design for Interiors and Exteriors",
-          status: "Advance Payment",
-          initialNote: "",
-        });
+      toast.success("New service lead created");
+      if (json.lead) {
+        setLeads((prev) => [json.lead, ...prev]);
       }
-    } catch (err) {
+      setShowAddLeadModal(false);
+      setNewLeadForm({
+        name: "",
+        phone: "",
+        serviceTitle: "3D Design for Interiors and Exteriors",
+        status: "Follow Up Again",
+        initialNote: "",
+      });
+    } catch (err: any) {
       console.error(err);
-      toast.error("Error creating lead");
+      toast.error(err.message || "Error creating lead");
     } finally {
       setActionLoading(null);
     }
@@ -319,13 +309,13 @@ export function ServiceLeadsTab() {
   const getStatusBadgeStyle = (status: LeadStatus) => {
     switch (status) {
       case "Advance Payment":
-        return "bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-700/50";
+        return "bg-emerald-500/20 text-emerald-400 border-emerald-500/40 dark:bg-emerald-950/80 dark:text-emerald-300 dark:border-emerald-700";
       case "Floor Plan":
-        return "bg-blue-100 text-blue-800 border-blue-300 dark:bg-blue-950/60 dark:text-blue-300 dark:border-blue-700/50";
+        return "bg-blue-500/20 text-blue-400 border-blue-500/40 dark:bg-blue-950/80 dark:text-blue-300 dark:border-blue-700";
       case "3D Design":
-        return "bg-purple-100 text-purple-800 border-purple-300 dark:bg-purple-950/60 dark:text-purple-300 dark:border-purple-700/50";
+        return "bg-purple-500/20 text-purple-400 border-purple-500/40 dark:bg-purple-950/80 dark:text-purple-300 dark:border-purple-700";
       case "Follow Up Again":
-        return "bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-700/50";
+        return "bg-amber-500/20 text-amber-400 border-amber-500/40 dark:bg-amber-950/80 dark:text-amber-300 dark:border-amber-700";
       default:
         return "bg-muted text-muted-foreground border-border";
     }
@@ -343,13 +333,13 @@ export function ServiceLeadsTab() {
           }
           className={`cursor-pointer rounded-xl border p-4 transition-all shadow-sm ${
             selectedStatusFilter === "Advance Payment"
-              ? "border-emerald-500 bg-emerald-50/80 dark:bg-emerald-950/40 dark:border-emerald-500"
-              : "border-border bg-card hover:border-emerald-300 dark:hover:border-emerald-700"
+              ? "border-emerald-500 bg-emerald-500/10 dark:bg-emerald-950/50 dark:border-emerald-500"
+              : "border-border bg-card hover:border-emerald-500/50"
           }`}
         >
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-muted-foreground">Advance Payment</span>
-            <span className="rounded-lg bg-emerald-500/10 p-2 text-emerald-600 dark:text-emerald-400">
+            <span className="rounded-lg bg-emerald-500/20 p-2 text-emerald-400">
               <DollarSign className="size-4" />
             </span>
           </div>
@@ -364,13 +354,13 @@ export function ServiceLeadsTab() {
           }
           className={`cursor-pointer rounded-xl border p-4 transition-all shadow-sm ${
             selectedStatusFilter === "Floor Plan"
-              ? "border-blue-500 bg-blue-50/80 dark:bg-blue-950/40 dark:border-blue-500"
-              : "border-border bg-card hover:border-blue-300 dark:hover:border-blue-700"
+              ? "border-blue-500 bg-blue-500/10 dark:bg-blue-950/50 dark:border-blue-500"
+              : "border-border bg-card hover:border-blue-500/50"
           }`}
         >
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-muted-foreground">Floor Plan</span>
-            <span className="rounded-lg bg-blue-500/10 p-2 text-blue-600 dark:text-blue-400">
+            <span className="rounded-lg bg-blue-500/20 p-2 text-blue-400">
               <Layers className="size-4" />
             </span>
           </div>
@@ -385,13 +375,13 @@ export function ServiceLeadsTab() {
           }
           className={`cursor-pointer rounded-xl border p-4 transition-all shadow-sm ${
             selectedStatusFilter === "3D Design"
-              ? "border-purple-500 bg-purple-50/80 dark:bg-purple-950/40 dark:border-purple-500"
-              : "border-border bg-card hover:border-purple-300 dark:hover:border-purple-700"
+              ? "border-purple-500 bg-purple-500/10 dark:bg-purple-950/50 dark:border-purple-500"
+              : "border-border bg-card hover:border-purple-500/50"
           }`}
         >
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-muted-foreground">3D Design</span>
-            <span className="rounded-lg bg-purple-500/10 p-2 text-purple-600 dark:text-purple-400">
+            <span className="rounded-lg bg-purple-500/20 p-2 text-purple-400">
               <Sparkles className="size-4" />
             </span>
           </div>
@@ -406,13 +396,13 @@ export function ServiceLeadsTab() {
           }
           className={`cursor-pointer rounded-xl border p-4 transition-all shadow-sm ${
             selectedStatusFilter === "Follow Up Again"
-              ? "border-amber-500 bg-amber-50/80 dark:bg-amber-950/40 dark:border-amber-500"
-              : "border-border bg-card hover:border-amber-300 dark:hover:border-amber-700"
+              ? "border-amber-500 bg-amber-500/10 dark:bg-amber-950/50 dark:border-amber-500"
+              : "border-border bg-card hover:border-amber-500/50"
           }`}
         >
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-muted-foreground">Follow Up Again</span>
-            <span className="rounded-lg bg-amber-500/10 p-2 text-amber-600 dark:text-amber-400">
+            <span className="rounded-lg bg-amber-500/20 p-2 text-amber-400">
               <Clock className="size-4" />
             </span>
           </div>
@@ -478,7 +468,7 @@ export function ServiceLeadsTab() {
       </div>
 
       {/* TABLE WITH 10 LEADS PER PAGE */}
-      <div className="rounded-xl border border-border bg-card overflow-hidden shadow-sm">
+      <div className="rounded-xl border border-border bg-card shadow-sm">
         {loading ? (
           <div className="flex items-center justify-center py-16">
             <Loader2 className="size-6 animate-spin text-muted-foreground" />
@@ -491,12 +481,11 @@ export function ServiceLeadsTab() {
           <Table>
             <TableHeader>
               <TableRow className="bg-muted/50">
-                <TableHead className="w-[180px]">Client Info</TableHead>
-                <TableHead>Requested Service</TableHead>
+                <TableHead className="w-[220px]">Requested Service</TableHead>
                 <TableHead>Appointment</TableHead>
                 <TableHead>Payment</TableHead>
-                <TableHead className="w-[180px]">Status (Click to Change)</TableHead>
-                <TableHead className="text-right">Notes & Logs</TableHead>
+                <TableHead className="w-[200px]">Status (Click to Change)</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -506,179 +495,197 @@ export function ServiceLeadsTab() {
                 const isExpanded = !!expandedNotes[lead.id];
 
                 return (
-                  <TableRow key={lead.id} className="align-top">
-                    {/* Client Info */}
-                    <TableCell className="py-3">
-                      <div className="font-semibold text-sm">{lead.name}</div>
-                      <div className="flex items-center gap-1 mt-0.5 text-xs text-muted-foreground">
-                        <Phone className="size-3" />
-                        <span>{lead.phone}</span>
-                      </div>
-                    </TableCell>
-
-                    {/* Requested Service */}
-                    <TableCell className="py-3">
-                      {lead.services?.title ? (
-                        <span className="font-medium text-xs">
-                          {lead.services.title}
-                        </span>
-                      ) : (
-                        <span className="text-xs text-muted-foreground italic">
-                          Consultation Call
-                        </span>
-                      )}
-                      <div className="text-[10px] text-muted-foreground mt-0.5">
-                        {dayjs(lead.created_at).format("MMM D, YYYY [at] h:mm A")}
-                      </div>
-                    </TableCell>
-
-                    {/* Appointment Slot */}
-                    <TableCell className="py-3 text-xs">
-                      {lead.appointment_date ? (
-                        <div className="space-y-0.5">
-                          <div className="font-medium text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                            <CalendarDays className="size-3" />
-                            {dayjs(lead.appointment_date).format("MMM D, YYYY")}
-                          </div>
-                          {lead.appointment_time && (
-                            <div className="text-muted-foreground flex items-center gap-1">
-                              <Clock className="size-3" />
-                              {lead.appointment_time}
-                            </div>
-                          )}
+                  <React.Fragment key={lead.id}>
+                    <TableRow className="align-top">
+                      {/* Service & Client Name */}
+                      <TableCell className="py-3">
+                        <div className="font-semibold text-sm">
+                          {lead.services?.title || "Consultation Service"}
                         </div>
-                      ) : (
-                        <span className="text-muted-foreground italic text-xs">—</span>
-                      )}
-                    </TableCell>
+                        <div className="flex items-center gap-1.5 mt-1 text-xs text-muted-foreground">
+                          <span className="font-medium text-foreground">{lead.name}</span>
+                          <span>•</span>
+                          <Phone className="size-3 text-muted-foreground" />
+                          <span>{lead.phone}</span>
+                        </div>
+                        <div className="text-[10px] text-muted-foreground mt-1">
+                          {dayjs(lead.created_at).format("MMM D, YYYY [at] h:mm A")}
+                        </div>
+                      </TableCell>
 
-                    {/* Payment Status */}
-                    <TableCell className="py-3">
-                      {lead.payment_status === "completed" ? (
-                        <span className="inline-flex items-center rounded-md bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 ring-1 ring-inset ring-emerald-700/10 dark:bg-emerald-950/60 dark:text-emerald-400 dark:ring-emerald-400/20">
-                          Completed
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center rounded-md bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700 ring-1 ring-inset ring-amber-700/10 dark:bg-amber-950/60 dark:text-amber-400 dark:ring-amber-400/20">
-                          Pending
-                        </span>
-                      )}
-                    </TableCell>
-
-                    {/* Status Dropdown Selector */}
-                    <TableCell className="py-3">
-                      <select
-                        value={status}
-                        onChange={(e) =>
-                          handleStatusChange(lead.id, e.target.value as LeadStatus)
-                        }
-                        disabled={actionLoading === `status_${lead.id}`}
-                        className={`w-full rounded-lg border px-2.5 py-1 text-xs font-semibold cursor-pointer outline-none transition ${getStatusBadgeStyle(
-                          status
-                        )}`}
-                      >
-                        {LEAD_STATUS_OPTIONS.map((opt) => (
-                          <option key={opt} value={opt} className="bg-background text-foreground font-normal">
-                            {opt}
-                          </option>
-                        ))}
-                      </select>
-                    </TableCell>
-
-                    {/* Notes & Logs Action */}
-                    <TableCell className="py-3 text-right">
-                      <Button
-                        variant={isExpanded ? "default" : "outline"}
-                        size="default"
-                        onClick={() =>
-                          setExpandedNotes((prev) => ({
-                            ...prev,
-                            [lead.id]: !prev[lead.id],
-                          }))
-                        }
-                        className="h-7 text-xs gap-1.5"
-                      >
-                        <FileText className="size-3.5" />
-                        Notes ({notesList.length})
-                      </Button>
-
-                      {/* Expandable Notes Logger Panel */}
-                      {isExpanded && (
-                        <div className="mt-3 text-left rounded-lg border border-border bg-muted/40 p-3 shadow-md space-y-3 min-w-[260px]">
-                          <div className="flex items-center justify-between border-b border-border pb-2">
-                            <span className="font-semibold text-xs flex items-center gap-1.5">
-                              <Clock className="size-3 text-primary" />
-                              Notes &amp; Timestamp Logs
-                            </span>
-                            <span className="text-[10px] text-muted-foreground">
-                              {notesList.length} {notesList.length === 1 ? "entry" : "entries"}
-                            </span>
-                          </div>
-
-                          {/* Notes Input Form */}
-                          <div className="space-y-2">
-                            <textarea
-                              placeholder="Enter details to log (e.g. Discussed 3D floor plan layout, scheduled follow-up call...)"
-                              value={noteInputs[lead.id] || ""}
-                              onChange={(e) =>
-                                setNoteInputs((prev) => ({
-                                  ...prev,
-                                  [lead.id]: e.target.value,
-                                }))
-                              }
-                              rows={2}
-                              className="w-full rounded-md border border-input bg-background p-2 text-xs placeholder:text-muted-foreground outline-none focus:ring-1 focus:ring-ring"
-                            />
-                            <div className="flex justify-end">
-                              <Button
-                                size="default"
-                                onClick={() => handleAddNote(lead.id)}
-                                disabled={
-                                  !noteInputs[lead.id] ||
-                                  !noteInputs[lead.id].trim() ||
-                                  actionLoading === `note_${lead.id}`
-                                }
-                                className="h-7 text-xs gap-1"
-                              >
-                                <Send className="size-3" />
-                                {actionLoading === `note_${lead.id}`
-                                  ? "Logging..."
-                                  : "Log Note"}
-                              </Button>
+                      {/* Appointment Slot */}
+                      <TableCell className="py-3 text-xs">
+                        {lead.appointment_date ? (
+                          <div className="space-y-0.5">
+                            <div className="font-medium text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                              <CalendarDays className="size-3" />
+                              {dayjs(lead.appointment_date).format("MMM D, YYYY")}
                             </div>
-                          </div>
-
-                          {/* Timeline List of Logged Notes */}
-                          <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
-                            {notesList.length > 0 ? (
-                              notesList.map((note) => (
-                                <div
-                                  key={note.id}
-                                  className="rounded-md border border-border bg-background p-2 text-xs space-y-1"
-                                >
-                                  <div className="flex items-center justify-between text-[10px] text-primary font-medium">
-                                    <span>📅 {note.formattedTime || formatLogTimestamp(note.createdAt)}</span>
-                                    {note.author && (
-                                      <span className="text-muted-foreground">
-                                        by {note.author}
-                                      </span>
-                                    )}
-                                  </div>
-                                  <p className="text-foreground whitespace-pre-wrap leading-relaxed">
-                                    {note.text}
-                                  </p>
-                                </div>
-                              ))
-                            ) : (
-                              <p className="text-center text-[11px] text-muted-foreground py-2">
-                                No notes logged yet. Enter details above to log with day &amp; time.
-                              </p>
+                            {lead.appointment_time && (
+                              <div className="text-muted-foreground flex items-center gap-1">
+                                <Clock className="size-3" />
+                                {lead.appointment_time}
+                              </div>
                             )}
                           </div>
-                        </div>
-                      )}
-                    </TableCell>
-                  </TableRow>
+                        ) : (
+                          <span className="text-muted-foreground italic text-xs">—</span>
+                        )}
+                      </TableCell>
+
+                      {/* Payment Status */}
+                      <TableCell className="py-3">
+                        {lead.payment_status === "completed" ? (
+                          <span className="inline-flex items-center rounded-md bg-emerald-500/20 px-2 py-0.5 text-xs font-semibold text-emerald-400 border border-emerald-500/30">
+                            Completed
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center rounded-md bg-amber-500/20 px-2 py-0.5 text-xs font-semibold text-amber-400 border border-amber-500/30">
+                            Pending
+                          </span>
+                        )}
+                      </TableCell>
+
+                      {/* Status Dropdown Selector */}
+                      <TableCell className="py-3">
+                        <select
+                          value={status}
+                          onChange={(e) =>
+                            handleStatusChange(lead.id, e.target.value as LeadStatus)
+                          }
+                          disabled={actionLoading === `status_${lead.id}`}
+                          className={`w-full rounded-lg border px-3 py-1.5 text-xs font-semibold cursor-pointer outline-none transition ${getStatusBadgeStyle(
+                            status
+                          )}`}
+                        >
+                          {LEAD_STATUS_OPTIONS.map((opt) => (
+                            <option
+                              key={opt}
+                              value={opt}
+                              className="bg-background text-foreground font-medium"
+                            >
+                              {opt}
+                            </option>
+                          ))}
+                        </select>
+                        {actionLoading === `status_${lead.id}` && (
+                          <div className="text-[10px] text-muted-foreground mt-0.5">
+                            Updating...
+                          </div>
+                        )}
+                      </TableCell>
+
+                      {/* Notes Button */}
+                      <TableCell className="py-3 text-right">
+                        <Button
+                          variant={isExpanded ? "default" : "outline"}
+                          size="default"
+                          onClick={() =>
+                            setExpandedNotes((prev) => ({
+                              ...prev,
+                              [lead.id]: !prev[lead.id],
+                            }))
+                          }
+                          className="h-8 text-xs gap-1.5"
+                        >
+                          <FileText className="size-3.5" />
+                          Notes ({notesList.length})
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+
+                    {/* EXPANDABLE INLINE FULL-WIDTH NOTES LOGGER ROW (NO BORDER OVERFLOW) */}
+                    {isExpanded && (
+                      <TableRow className="bg-muted/30 border-b border-border">
+                        <TableCell colSpan={5} className="p-4">
+                          <div className="rounded-xl border border-border bg-card p-4 space-y-4 shadow-sm">
+                            <div className="flex items-center justify-between border-b border-border pb-2">
+                              <div className="flex items-center gap-2">
+                                <FileText className="size-4 text-primary" />
+                                <span className="font-bold text-sm">
+                                  Notes &amp; Timestamp Logs for {lead.name}
+                                </span>
+                              </div>
+                              <span className="text-xs text-muted-foreground font-medium">
+                                {notesList.length} {notesList.length === 1 ? "entry" : "entries"}
+                              </span>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              {/* Left Column: Note Input Form */}
+                              <div className="space-y-2">
+                                <label className="block text-xs font-semibold text-foreground">
+                                  Log New Note (Saves with exact day &amp; time)
+                                </label>
+                                <textarea
+                                  placeholder="Type notes here (e.g. Client requested floor plan revision, follow-up call scheduled...)"
+                                  value={noteInputs[lead.id] || ""}
+                                  onChange={(e) =>
+                                    setNoteInputs((prev) => ({
+                                      ...prev,
+                                      [lead.id]: e.target.value,
+                                    }))
+                                  }
+                                  rows={3}
+                                  className="w-full rounded-lg border border-input bg-background p-3 text-xs text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-primary"
+                                />
+                                <div className="flex justify-end">
+                                  <Button
+                                    size="default"
+                                    onClick={() => handleAddNote(lead.id)}
+                                    disabled={
+                                      !noteInputs[lead.id] ||
+                                      !noteInputs[lead.id].trim() ||
+                                      actionLoading === `note_${lead.id}`
+                                    }
+                                    className="h-8 text-xs gap-1.5"
+                                  >
+                                    <Send className="size-3.5" />
+                                    {actionLoading === `note_${lead.id}`
+                                      ? "Saving Note..."
+                                      : "Log Note"}
+                                  </Button>
+                                </div>
+                              </div>
+
+                              {/* Right Column: Historical Logs Timeline */}
+                              <div className="space-y-2">
+                                <label className="block text-xs font-semibold text-foreground">
+                                  Logged History
+                                </label>
+                                <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
+                                  {notesList.length > 0 ? (
+                                    notesList.map((note) => (
+                                      <div
+                                        key={note.id}
+                                        className="rounded-lg border border-border bg-muted/30 p-2.5 text-xs space-y-1"
+                                      >
+                                        <div className="flex items-center justify-between text-[11px] text-primary font-semibold">
+                                          <span>📅 {note.formattedTime || formatLogTimestamp(note.createdAt)}</span>
+                                          {note.author && (
+                                            <span className="text-muted-foreground text-[10px]">
+                                              by {note.author}
+                                            </span>
+                                          )}
+                                        </div>
+                                        <p className="text-foreground whitespace-pre-wrap leading-relaxed">
+                                          {note.text}
+                                        </p>
+                                      </div>
+                                    ))
+                                  ) : (
+                                    <div className="rounded-lg border border-dashed border-border p-4 text-center text-xs text-muted-foreground">
+                                      No notes logged yet for this lead. Type a note on the left and click &quot;Log Note&quot;.
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </React.Fragment>
                 );
               })}
             </TableBody>
@@ -786,7 +793,7 @@ export function ServiceLeadsTab() {
 
               <div>
                 <label className="block text-muted-foreground font-medium mb-1">
-                  Status
+                  Initial Status
                 </label>
                 <select
                   value={newLeadForm.status}

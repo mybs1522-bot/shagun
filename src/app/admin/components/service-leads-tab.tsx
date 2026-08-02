@@ -716,31 +716,28 @@ export function ServiceLeadsTab() {
                         )}
                       </TableCell>
 
-                      {/* Payment Status Badge & WhatsApp Follow Up Button */}
+                      {/* Payment Status Badge & WhatsApp Follow Up Icon */}
                       <TableCell className="py-3">
                         {isPaid ? (
                           <span className="inline-flex items-center rounded-md bg-emerald-500/20 px-2.5 py-1 text-xs font-semibold text-emerald-400 border border-emerald-500/30">
                             Completed
                           </span>
                         ) : (
-                          <div className="space-y-1.5">
+                          <div className="flex items-center gap-2">
                             <span className="inline-flex items-center rounded-md bg-amber-500/20 px-2.5 py-0.5 text-xs font-semibold text-amber-400 border border-amber-500/30">
                               Pending
                             </span>
 
-                            {/* 1-CLICK WHATSAPP FOLLOW UP BUTTON FOR PENDING ORDERS */}
-                            <div>
-                              <a
-                                href={waUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 px-2.5 py-1 text-[11px] font-bold text-white shadow-sm transition-all hover:scale-[1.02]"
-                                title="Click to open WhatsApp with pre-filled follow up message"
-                              >
-                                <MessageCircle className="size-3.5 fill-white text-emerald-600" />
-                                WhatsApp Follow Up
-                              </a>
-                            </div>
+                            {/* SMALL WHATSAPP ICON FOR PENDING ORDERS */}
+                            <a
+                              href={waUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center justify-center p-1.5 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white transition-transform hover:scale-110 shadow-sm"
+                              title="Send WhatsApp Follow Up message"
+                            >
+                              <MessageCircle className="size-3.5 fill-white text-emerald-600" />
+                            </a>
                           </div>
                         )}
                       </TableCell>

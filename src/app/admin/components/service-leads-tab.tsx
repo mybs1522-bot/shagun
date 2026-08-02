@@ -16,6 +16,11 @@ import {
   RefreshCw,
   Send,
   PlusCircle,
+  CheckCircle2,
+  Calendar,
+  IndianRupee,
+  Save,
+  Check,
 } from "lucide-react";
 import React, { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -36,13 +41,15 @@ export type LeadStatus =
   | "Advance Payment"
   | "Floor Plan"
   | "3D Design"
-  | "Follow Up Again";
+  | "Follow Up Again"
+  | "Closed";
 
 export const LEAD_STATUS_OPTIONS: LeadStatus[] = [
   "Advance Payment",
   "Floor Plan",
   "3D Design",
   "Follow Up Again",
+  "Closed",
 ];
 
 export type LeadNote = {
@@ -65,6 +72,8 @@ export type ServiceLead = {
   appointment_date?: string | null;
   appointment_time?: string | null;
   notes_json?: string | LeadNote[] | null;
+  money_received?: number | null;
+  deadline_date?: string | null;
   services: Pick<Service, "title"> | null;
 };
 
@@ -86,25 +95,45 @@ export function ServiceLeadsTab() {
   const [noteInputs, setNoteInputs] = useState<Record<string, string>>({});
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
+  // Money & Deadline editing state per lead
+  const [moneyInputs, setMoneyInputs] = useState<Record<string, string>>({});
+  const [deadlineInputs, setDeadlineInputs] = useState<Record<string, string>>({});
+
+  // Saved feedback highlights
+  const [savedSuccess, setSavedSuccess] = useState<Record<string, boolean>>({});
+
   // New lead form modal
   const [showAddLeadModal, setShowAddLeadModal] = useState(false);
   const [newLeadForm, setNewLeadForm] = useState({
     name: "",
     phone: "",
     serviceTitle: "3D Design for Interiors and Exteriors",
-    status: "Follow Up Again" as LeadStatus, // Default is Follow Up Again
+    status: "Follow Up Again" as LeadStatus,
+    moneyReceived: "0",
+    deadlineDate: "",
     initialNote: "",
   });
 
   const fetchLeads = useCallback(async () => {
     setLoading(true);
     try {
-      // First try server API for admin role access
       const res = await fetch("/api/admin/leads");
       if (res.ok) {
         const json = await res.json();
         if (json.leads) {
-          setLeads(json.leads || []);
+          const loadedLeads = (json.leads || []) as ServiceLead[];
+          setLeads(loadedLeads);
+
+          // Populate inputs
+          const mInputs: Record<string, string> = {};
+          const dInputs: Record<string, string> = {};
+          loadedLeads.forEach((l) => {
+            mInputs[l.id] = String(l.money_received ?? 0);
+            dInputs[l.id] = l.deadline_date || "";
+          });
+          setMoneyInputs(mInputs);
+          setDeadlineInputs(dInputs);
+
           setLoading(false);
           return;
         }
@@ -126,7 +155,17 @@ export function ServiceLeadsTab() {
       toast.error("Failed to load service leads");
       console.error(error);
     } else {
-      setLeads((data as unknown as ServiceLead[]) || []);
+      const loadedLeads = (data as unknown as ServiceLead[]) || [];
+      setLeads(loadedLeads);
+
+      const mInputs: Record<string, string> = {};
+      const dInputs: Record<string, string> = {};
+      loadedLeads.forEach((l) => {
+        mInputs[l.id] = String(l.money_received ?? (l.payment_status === "completed" ? 999 : 0));
+        dInputs[l.id] = l.deadline_date || "";
+      });
+      setMoneyInputs(mInputs);
+      setDeadlineInputs(dInputs);
     }
     setLoading(false);
   }, []);
@@ -146,7 +185,7 @@ export function ServiceLeadsTab() {
     }
   };
 
-  // Helper to get status (DEFAULTS TO "Follow Up Again". NEVER default to "Advance Payment"!)
+  // Helper to get status
   const getLeadStatus = (lead: ServiceLead): LeadStatus => {
     if (lead.lead_status && LEAD_STATUS_OPTIONS.includes(lead.lead_status)) {
       return lead.lead_status;
@@ -181,7 +220,7 @@ export function ServiceLeadsTab() {
     setCurrentPage(1);
   }, [search, selectedStatusFilter]);
 
-  // Update lead status via Server API (100% reliable)
+  // Update lead status via Server API
   const handleStatusChange = async (leadId: string, newStatus: LeadStatus) => {
     setActionLoading(`status_${leadId}`);
     try {
@@ -196,9 +235,7 @@ export function ServiceLeadsTab() {
       });
 
       const json = await res.json();
-      if (!res.ok) {
-        throw new Error(json.error || "Failed to update status");
-      }
+      if (!res.ok) throw new Error(json.error || "Failed to update status");
 
       toast.success(`Status updated to "${newStatus}"`);
       setLeads((prev) =>
@@ -207,6 +244,81 @@ export function ServiceLeadsTab() {
     } catch (err: any) {
       console.error(err);
       toast.error(err.message || "Failed to update status");
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  // Save money received
+  const handleSaveMoney = async (leadId: string) => {
+    const rawVal = moneyInputs[leadId] ?? "0";
+    const numVal = parseFloat(rawVal) || 0;
+
+    setActionLoading(`money_${leadId}`);
+    try {
+      const res = await fetch("/api/admin/leads", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "update_money",
+          leadId,
+          moneyReceived: numVal,
+        }),
+      });
+
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Failed to save money received");
+
+      toast.success(`Money received saved: ₹${numVal.toLocaleString("en-IN")}`);
+      setLeads((prev) =>
+        prev.map((l) => (l.id === leadId ? { ...l, money_received: numVal } : l))
+      );
+
+      setSavedSuccess((prev) => ({ ...prev, [`m_${leadId}`]: true }));
+      setTimeout(() => {
+        setSavedSuccess((prev) => ({ ...prev, [`m_${leadId}`]: false }));
+      }, 2000);
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err.message || "Error saving money");
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  // Save deadline date
+  const handleSaveDeadline = async (leadId: string, deadlineDate: string) => {
+    setActionLoading(`deadline_${leadId}`);
+    try {
+      const res = await fetch("/api/admin/leads", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "update_deadline",
+          leadId,
+          deadlineDate,
+        }),
+      });
+
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Failed to save deadline");
+
+      toast.success(
+        deadlineDate
+          ? `Deadline updated to ${dayjs(deadlineDate).format("MMM D, YYYY")}`
+          : "Deadline cleared"
+      );
+      setLeads((prev) =>
+        prev.map((l) => (l.id === leadId ? { ...l, deadline_date: deadlineDate } : l))
+      );
+
+      setSavedSuccess((prev) => ({ ...prev, [`d_${leadId}`]: true }));
+      setTimeout(() => {
+        setSavedSuccess((prev) => ({ ...prev, [`d_${leadId}`]: false }));
+      }, 2000);
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err.message || "Error saving deadline");
     } finally {
       setActionLoading(null);
     }
@@ -231,9 +343,7 @@ export function ServiceLeadsTab() {
       });
 
       const json = await res.json();
-      if (!res.ok) {
-        throw new Error(json.error || "Failed to save note");
-      }
+      if (!res.ok) throw new Error(json.error || "Failed to save note");
 
       toast.success("Note logged with day & time");
       const updatedNotes = json.notes || [];
@@ -270,6 +380,8 @@ export function ServiceLeadsTab() {
             name: newLeadForm.name,
             phone: newLeadForm.phone,
             status: newLeadForm.status,
+            moneyReceived: newLeadForm.moneyReceived,
+            deadlineDate: newLeadForm.deadlineDate,
             initialNote: newLeadForm.initialNote,
           },
         }),
@@ -288,6 +400,8 @@ export function ServiceLeadsTab() {
         phone: "",
         serviceTitle: "3D Design for Interiors and Exteriors",
         status: "Follow Up Again",
+        moneyReceived: "0",
+        deadlineDate: "",
         initialNote: "",
       });
     } catch (err: any) {
@@ -298,12 +412,24 @@ export function ServiceLeadsTab() {
     }
   };
 
+  // Calculate Total Money Received across all leads
+  const totalMoneyReceived = leads.reduce((sum, l) => {
+    const val =
+      l.money_received !== undefined && l.money_received !== null
+        ? l.money_received
+        : l.payment_status === "completed"
+        ? 999
+        : 0;
+    return sum + (typeof val === "number" ? val : parseFloat(val || "0"));
+  }, 0);
+
   // Status counts
   const statusCounts = {
     advance: leads.filter((l) => getLeadStatus(l) === "Advance Payment").length,
     floorPlan: leads.filter((l) => getLeadStatus(l) === "Floor Plan").length,
     design3d: leads.filter((l) => getLeadStatus(l) === "3D Design").length,
     followUp: leads.filter((l) => getLeadStatus(l) === "Follow Up Again").length,
+    closed: leads.filter((l) => getLeadStatus(l) === "Closed").length,
   };
 
   const getStatusBadgeStyle = (status: LeadStatus) => {
@@ -316,15 +442,33 @@ export function ServiceLeadsTab() {
         return "bg-purple-500/20 text-purple-400 border-purple-500/40 dark:bg-purple-950/80 dark:text-purple-300 dark:border-purple-700";
       case "Follow Up Again":
         return "bg-amber-500/20 text-amber-400 border-amber-500/40 dark:bg-amber-950/80 dark:text-amber-300 dark:border-amber-700";
+      case "Closed":
+        return "bg-zinc-500/20 text-zinc-300 border-zinc-500/40 dark:bg-zinc-800 dark:text-zinc-300 dark:border-zinc-700";
       default:
         return "bg-muted text-muted-foreground border-border";
     }
   };
 
   return (
-    <div className="space-y-6">
-      {/* STATUS STATS CARDS */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+    <div className="space-y-6 w-full">
+      {/* TOTAL MONEY RECEIVED BANNER & STATUS COUNTERS */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+        {/* TOTAL MONEY RECEIVED COUNTER */}
+        <div className="col-span-2 sm:col-span-1 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4 shadow-sm">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-emerald-400">
+              Total Money Received
+            </span>
+            <span className="rounded-lg bg-emerald-500/20 p-2 text-emerald-400">
+              <IndianRupee className="size-4" />
+            </span>
+          </div>
+          <p className="mt-2 text-2xl font-black text-emerald-400">
+            ₹{totalMoneyReceived.toLocaleString("en-IN")}
+          </p>
+        </div>
+
+        {/* STATUS COUNTERS */}
         <div
           onClick={() =>
             setSelectedStatusFilter(
@@ -333,17 +477,17 @@ export function ServiceLeadsTab() {
           }
           className={`cursor-pointer rounded-xl border p-4 transition-all shadow-sm ${
             selectedStatusFilter === "Advance Payment"
-              ? "border-emerald-500 bg-emerald-500/10 dark:bg-emerald-950/50 dark:border-emerald-500"
+              ? "border-emerald-500 bg-emerald-500/10"
               : "border-border bg-card hover:border-emerald-500/50"
           }`}
         >
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-muted-foreground">Advance Payment</span>
-            <span className="rounded-lg bg-emerald-500/20 p-2 text-emerald-400">
-              <DollarSign className="size-4" />
+            <span className="text-xs font-medium text-muted-foreground">Advance</span>
+            <span className="rounded-lg bg-emerald-500/10 p-1.5 text-emerald-400">
+              <DollarSign className="size-3.5" />
             </span>
           </div>
-          <p className="mt-2 text-2xl font-bold">{statusCounts.advance}</p>
+          <p className="mt-2 text-xl font-bold">{statusCounts.advance}</p>
         </div>
 
         <div
@@ -354,17 +498,17 @@ export function ServiceLeadsTab() {
           }
           className={`cursor-pointer rounded-xl border p-4 transition-all shadow-sm ${
             selectedStatusFilter === "Floor Plan"
-              ? "border-blue-500 bg-blue-500/10 dark:bg-blue-950/50 dark:border-blue-500"
+              ? "border-blue-500 bg-blue-500/10"
               : "border-border bg-card hover:border-blue-500/50"
           }`}
         >
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-muted-foreground">Floor Plan</span>
-            <span className="rounded-lg bg-blue-500/20 p-2 text-blue-400">
-              <Layers className="size-4" />
+            <span className="rounded-lg bg-blue-500/10 p-1.5 text-blue-400">
+              <Layers className="size-3.5" />
             </span>
           </div>
-          <p className="mt-2 text-2xl font-bold">{statusCounts.floorPlan}</p>
+          <p className="mt-2 text-xl font-bold">{statusCounts.floorPlan}</p>
         </div>
 
         <div
@@ -375,17 +519,17 @@ export function ServiceLeadsTab() {
           }
           className={`cursor-pointer rounded-xl border p-4 transition-all shadow-sm ${
             selectedStatusFilter === "3D Design"
-              ? "border-purple-500 bg-purple-500/10 dark:bg-purple-950/50 dark:border-purple-500"
+              ? "border-purple-500 bg-purple-500/10"
               : "border-border bg-card hover:border-purple-500/50"
           }`}
         >
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-muted-foreground">3D Design</span>
-            <span className="rounded-lg bg-purple-500/20 p-2 text-purple-400">
-              <Sparkles className="size-4" />
+            <span className="rounded-lg bg-purple-500/10 p-1.5 text-purple-400">
+              <Sparkles className="size-3.5" />
             </span>
           </div>
-          <p className="mt-2 text-2xl font-bold">{statusCounts.design3d}</p>
+          <p className="mt-2 text-xl font-bold">{statusCounts.design3d}</p>
         </div>
 
         <div
@@ -396,17 +540,39 @@ export function ServiceLeadsTab() {
           }
           className={`cursor-pointer rounded-xl border p-4 transition-all shadow-sm ${
             selectedStatusFilter === "Follow Up Again"
-              ? "border-amber-500 bg-amber-500/10 dark:bg-amber-950/50 dark:border-amber-500"
+              ? "border-amber-500 bg-amber-500/10"
               : "border-border bg-card hover:border-amber-500/50"
           }`}
         >
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-muted-foreground">Follow Up Again</span>
-            <span className="rounded-lg bg-amber-500/20 p-2 text-amber-400">
-              <Clock className="size-4" />
+            <span className="text-xs font-medium text-muted-foreground">Follow Up</span>
+            <span className="rounded-lg bg-amber-500/10 p-1.5 text-amber-400">
+              <Clock className="size-3.5" />
             </span>
           </div>
-          <p className="mt-2 text-2xl font-bold">{statusCounts.followUp}</p>
+          <p className="mt-2 text-xl font-bold">{statusCounts.followUp}</p>
+        </div>
+
+        {/* CLOSED STATUS COUNTER */}
+        <div
+          onClick={() =>
+            setSelectedStatusFilter(
+              selectedStatusFilter === "Closed" ? "all" : "Closed"
+            )
+          }
+          className={`cursor-pointer rounded-xl border p-4 transition-all shadow-sm ${
+            selectedStatusFilter === "Closed"
+              ? "border-zinc-400 bg-zinc-500/20"
+              : "border-border bg-card hover:border-zinc-500/50"
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-medium text-muted-foreground">Closed</span>
+            <span className="rounded-lg bg-zinc-500/20 p-1.5 text-zinc-300">
+              <CheckCircle2 className="size-3.5" />
+            </span>
+          </div>
+          <p className="mt-2 text-xl font-bold">{statusCounts.closed}</p>
         </div>
       </div>
 
@@ -467,8 +633,8 @@ export function ServiceLeadsTab() {
         </div>
       </div>
 
-      {/* TABLE WITH 10 LEADS PER PAGE */}
-      <div className="rounded-xl border border-border bg-card shadow-sm">
+      {/* FULL-WIDTH TABLE ON PC (ZERO HORIZONTAL SCROLLBAR) */}
+      <div className="rounded-xl border border-border bg-card shadow-sm w-full overflow-x-auto sm:overflow-x-visible">
         {loading ? (
           <div className="flex items-center justify-center py-16">
             <Loader2 className="size-6 animate-spin text-muted-foreground" />
@@ -478,14 +644,15 @@ export function ServiceLeadsTab() {
             No service leads found.
           </div>
         ) : (
-          <Table>
+          <Table className="w-full">
             <TableHeader>
               <TableRow className="bg-muted/50">
-                <TableHead className="w-[220px]">Requested Service</TableHead>
-                <TableHead>Appointment</TableHead>
-                <TableHead>Payment</TableHead>
-                <TableHead className="w-[200px]">Status (Click to Change)</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
+                <TableHead className="min-w-[200px]">Client &amp; Service</TableHead>
+                <TableHead className="min-w-[130px]">Appointment</TableHead>
+                <TableHead className="min-w-[150px]">Money Received (₹ Entry)</TableHead>
+                <TableHead className="min-w-[150px]">Deadline Date</TableHead>
+                <TableHead className="min-w-[160px]">Status (Select)</TableHead>
+                <TableHead className="text-right min-w-[110px]">Notes</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -493,19 +660,23 @@ export function ServiceLeadsTab() {
                 const status = getLeadStatus(lead);
                 const notesList = getNotes(lead);
                 const isExpanded = !!expandedNotes[lead.id];
+                const moneyVal = moneyInputs[lead.id] ?? String(lead.money_received ?? 0);
+                const deadlineVal = deadlineInputs[lead.id] ?? lead.deadline_date ?? "";
+                const isMoneySaved = !!savedSuccess[`m_${lead.id}`];
+                const isDeadlineSaved = !!savedSuccess[`d_${lead.id}`];
 
                 return (
                   <React.Fragment key={lead.id}>
-                    <TableRow className="align-top">
-                      {/* Service & Client Name */}
+                    <TableRow className="align-top hover:bg-muted/20">
+                      {/* Service & Client Info */}
                       <TableCell className="py-3">
-                        <div className="font-semibold text-sm">
+                        <div className="font-semibold text-sm text-foreground">
                           {lead.services?.title || "Consultation Service"}
                         </div>
                         <div className="flex items-center gap-1.5 mt-1 text-xs text-muted-foreground">
                           <span className="font-medium text-foreground">{lead.name}</span>
                           <span>•</span>
-                          <Phone className="size-3 text-muted-foreground" />
+                          <Phone className="size-3 text-muted-foreground shrink-0" />
                           <span>{lead.phone}</span>
                         </div>
                         <div className="text-[10px] text-muted-foreground mt-1">
@@ -518,12 +689,12 @@ export function ServiceLeadsTab() {
                         {lead.appointment_date ? (
                           <div className="space-y-0.5">
                             <div className="font-medium text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                              <CalendarDays className="size-3" />
+                              <CalendarDays className="size-3 shrink-0" />
                               {dayjs(lead.appointment_date).format("MMM D, YYYY")}
                             </div>
                             {lead.appointment_time && (
                               <div className="text-muted-foreground flex items-center gap-1">
-                                <Clock className="size-3" />
+                                <Clock className="size-3 shrink-0" />
                                 {lead.appointment_time}
                               </div>
                             )}
@@ -533,16 +704,66 @@ export function ServiceLeadsTab() {
                         )}
                       </TableCell>
 
-                      {/* Payment Status */}
+                      {/* Money Received Entry Box */}
                       <TableCell className="py-3">
-                        {lead.payment_status === "completed" ? (
-                          <span className="inline-flex items-center rounded-md bg-emerald-500/20 px-2 py-0.5 text-xs font-semibold text-emerald-400 border border-emerald-500/30">
-                            Completed
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center rounded-md bg-amber-500/20 px-2 py-0.5 text-xs font-semibold text-amber-400 border border-amber-500/30">
-                            Pending
-                          </span>
+                        <div className="flex items-center gap-1.5">
+                          <div className="relative flex items-center flex-1">
+                            <span className="absolute left-2 text-xs font-bold text-emerald-500">₹</span>
+                            <input
+                              type="number"
+                              placeholder="0"
+                              value={moneyVal}
+                              onChange={(e) =>
+                                setMoneyInputs({
+                                  ...moneyInputs,
+                                  [lead.id]: e.target.value,
+                                })
+                              }
+                              className="w-full rounded-md border border-input bg-background pl-6 pr-2 py-1 text-xs font-bold text-foreground outline-none focus:ring-1 focus:ring-primary"
+                            />
+                          </div>
+
+                          <Button
+                            size="icon"
+                            variant="outline"
+                            onClick={() => handleSaveMoney(lead.id)}
+                            disabled={actionLoading === `money_${lead.id}`}
+                            className="size-7 shrink-0 text-emerald-500 hover:text-emerald-400"
+                            title="Save Money Received"
+                          >
+                            {actionLoading === `money_${lead.id}` ? (
+                              <Loader2 className="size-3.5 animate-spin" />
+                            ) : isMoneySaved ? (
+                              <Check className="size-3.5 text-emerald-400" />
+                            ) : (
+                              <Save className="size-3.5" />
+                            )}
+                          </Button>
+                        </div>
+                      </TableCell>
+
+                      {/* Deadline Date Entry */}
+                      <TableCell className="py-3">
+                        <div className="flex items-center gap-1.5">
+                          <input
+                            type="date"
+                            value={deadlineVal}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setDeadlineInputs({ ...deadlineInputs, [lead.id]: val });
+                              handleSaveDeadline(lead.id, val);
+                            }}
+                            className="w-full rounded-md border border-input bg-background px-2 py-1 text-xs font-medium text-foreground outline-none focus:ring-1 focus:ring-primary cursor-pointer"
+                          />
+                          {isDeadlineSaved && (
+                            <Check className="size-3.5 text-emerald-400 shrink-0" />
+                          )}
+                        </div>
+                        {deadlineVal && (
+                          <div className="text-[10px] text-amber-500 font-medium mt-1 flex items-center gap-1">
+                            <Calendar className="size-3 shrink-0" />
+                            Target: {dayjs(deadlineVal).format("MMM D, YYYY")}
+                          </div>
                         )}
                       </TableCell>
 
@@ -554,7 +775,7 @@ export function ServiceLeadsTab() {
                             handleStatusChange(lead.id, e.target.value as LeadStatus)
                           }
                           disabled={actionLoading === `status_${lead.id}`}
-                          className={`w-full rounded-lg border px-3 py-1.5 text-xs font-semibold cursor-pointer outline-none transition ${getStatusBadgeStyle(
+                          className={`w-full rounded-lg border px-2.5 py-1.5 text-xs font-semibold cursor-pointer outline-none transition ${getStatusBadgeStyle(
                             status
                           )}`}
                         >
@@ -594,10 +815,10 @@ export function ServiceLeadsTab() {
                       </TableCell>
                     </TableRow>
 
-                    {/* EXPANDABLE INLINE FULL-WIDTH NOTES LOGGER ROW (NO BORDER OVERFLOW) */}
+                    {/* EXPANDABLE INLINE FULL-WIDTH NOTES LOGGER ROW */}
                     {isExpanded && (
                       <TableRow className="bg-muted/30 border-b border-border">
-                        <TableCell colSpan={5} className="p-4">
+                        <TableCell colSpan={6} className="p-4">
                           <div className="rounded-xl border border-border bg-card p-4 space-y-4 shadow-sm">
                             <div className="flex items-center justify-between border-b border-border pb-2">
                               <div className="flex items-center gap-2">
@@ -618,7 +839,7 @@ export function ServiceLeadsTab() {
                                   Log New Note (Saves with exact day &amp; time)
                                 </label>
                                 <textarea
-                                  placeholder="Type notes here (e.g. Client requested floor plan revision, follow-up call scheduled...)"
+                                  placeholder="Type notes here (e.g. Client requested 3D elevation changes, advance paid ₹5,000...)"
                                   value={noteInputs[lead.id] || ""}
                                   onChange={(e) =>
                                     setNoteInputs((prev) => ({
@@ -789,6 +1010,37 @@ export function ServiceLeadsTab() {
                   }
                   className="w-full rounded-md border border-input bg-background p-2 text-xs placeholder:text-muted-foreground outline-none focus:ring-1 focus:ring-ring"
                 />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-muted-foreground font-medium mb-1">
+                    Money Received (₹)
+                  </label>
+                  <input
+                    type="number"
+                    placeholder="999"
+                    value={newLeadForm.moneyReceived}
+                    onChange={(e) =>
+                      setNewLeadForm({ ...newLeadForm, moneyReceived: e.target.value })
+                    }
+                    className="w-full rounded-md border border-input bg-background p-2 text-xs placeholder:text-muted-foreground outline-none focus:ring-1 focus:ring-ring"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-muted-foreground font-medium mb-1">
+                    Deadline Date
+                  </label>
+                  <input
+                    type="date"
+                    value={newLeadForm.deadlineDate}
+                    onChange={(e) =>
+                      setNewLeadForm({ ...newLeadForm, deadlineDate: e.target.value })
+                    }
+                    className="w-full rounded-md border border-input bg-background p-2 text-xs outline-none focus:ring-1 focus:ring-ring"
+                  />
+                </div>
               </div>
 
               <div>

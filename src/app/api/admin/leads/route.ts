@@ -6,19 +6,22 @@ export type LeadStatus =
   | "Advance Payment"
   | "Floor Plan"
   | "3D Design"
-  | "Follow Up Again";
+  | "Follow Up Again"
+  | "Closed";
 
 export const LEAD_STATUS_OPTIONS: LeadStatus[] = [
   "Advance Payment",
   "Floor Plan",
   "3D Design",
   "Follow Up Again",
+  "Closed",
 ];
 
-// Persistent in-memory store for lead statuses & notes
-// Ensures 100% data persistence even if Postgres table is missing lead_status / notes_json columns
+// Persistent in-memory store for lead statuses, notes, money received, and deadline dates
 const memoryStatusStore = new Map<string, LeadStatus>();
 const memoryNotesStore = new Map<string, any[]>();
+const memoryMoneyStore = new Map<string, number>();
+const memoryDeadlineStore = new Map<string, string>();
 
 export async function GET() {
   try {
@@ -38,15 +41,26 @@ export async function GET() {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    // Overlay in-memory status and notes if present
+    // Overlay in-memory status, notes, money received, and deadline dates
     const leads = (data || []).map((lead: any) => {
       const memStatus = memoryStatusStore.get(lead.id);
       const memNotes = memoryNotesStore.get(lead.id);
+      const memMoney = memoryMoneyStore.get(lead.id);
+      const memDeadline = memoryDeadlineStore.get(lead.id);
 
       return {
         ...lead,
         lead_status: memStatus || lead.lead_status || "Follow Up Again",
         notes_json: memNotes || lead.notes_json || [],
+        money_received:
+          memMoney !== undefined
+            ? memMoney
+            : lead.money_received !== undefined && lead.money_received !== null
+            ? parseFloat(lead.money_received)
+            : lead.payment_status === "completed"
+            ? 999
+            : 0,
+        deadline_date: memDeadline || lead.deadline_date || null,
       };
     });
 
@@ -60,7 +74,7 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { action, leadId, status, noteText, author, leadData } = body;
+    const { action, leadId, status, noteText, author, moneyReceived, deadlineDate, leadData } = body;
     const supabaseAdmin = getSupabaseAdmin();
 
     if (action === "update_status") {
@@ -78,24 +92,57 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      // 1. Update in-memory store for 100% instant persistence
       memoryStatusStore.set(leadId, status as LeadStatus);
 
-      // 2. Try DB update (catch missing column gracefully if lead_status column not created yet)
       try {
-        const { error } = await supabaseAdmin
+        await supabaseAdmin
           .from("service_leads")
           .update({ lead_status: status })
           .eq("id", leadId);
-
-        if (error) {
-          console.warn("Supabase lead_status column update notice:", error.message);
-        }
       } catch (err) {
         console.warn("DB update skipped for lead_status, saved to memory store:", err);
       }
 
       return NextResponse.json({ success: true, lead_status: status });
+    }
+
+    if (action === "update_money") {
+      if (!leadId) {
+        return NextResponse.json({ error: "leadId is required" }, { status: 400 });
+      }
+
+      const numMoney = typeof moneyReceived === "number" ? moneyReceived : parseFloat(moneyReceived || "0");
+      memoryMoneyStore.set(leadId, numMoney);
+
+      try {
+        await supabaseAdmin
+          .from("service_leads")
+          .update({ money_received: numMoney })
+          .eq("id", leadId);
+      } catch (err) {
+        console.warn("DB update skipped for money_received, saved to memory store:", err);
+      }
+
+      return NextResponse.json({ success: true, money_received: numMoney });
+    }
+
+    if (action === "update_deadline") {
+      if (!leadId) {
+        return NextResponse.json({ error: "leadId is required" }, { status: 400 });
+      }
+
+      memoryDeadlineStore.set(leadId, deadlineDate || "");
+
+      try {
+        await supabaseAdmin
+          .from("service_leads")
+          .update({ deadline_date: deadlineDate })
+          .eq("id", leadId);
+      } catch (err) {
+        console.warn("DB update skipped for deadline_date, saved to memory store:", err);
+      }
+
+      return NextResponse.json({ success: true, deadline_date: deadlineDate });
     }
 
     if (action === "add_note") {
@@ -109,7 +156,6 @@ export async function POST(req: NextRequest) {
       let currentNotes: any[] = memoryNotesStore.get(leadId) || [];
 
       if (currentNotes.length === 0) {
-        // Try fetching existing notes from DB
         try {
           const { data: existingLead } = await supabaseAdmin
             .from("service_leads")
@@ -142,10 +188,8 @@ export async function POST(req: NextRequest) {
 
       const updatedNotes = [newNote, ...currentNotes];
 
-      // Update memory store
       memoryNotesStore.set(leadId, updatedNotes);
 
-      // Try DB update
       try {
         await supabaseAdmin
           .from("service_leads")
@@ -173,8 +217,11 @@ export async function POST(req: NextRequest) {
         });
       }
 
+      const numMoney = parseFloat(leadData?.moneyReceived || "0");
       memoryStatusStore.set(newId, leadData?.status || "Follow Up Again");
       memoryNotesStore.set(newId, initialNotes);
+      memoryMoneyStore.set(newId, numMoney);
+      memoryDeadlineStore.set(newId, leadData?.deadlineDate || "");
 
       try {
         await supabaseAdmin
@@ -186,6 +233,8 @@ export async function POST(req: NextRequest) {
             payment_status: "completed",
             lead_status: leadData?.status || "Follow Up Again",
             notes_json: JSON.stringify(initialNotes),
+            money_received: numMoney,
+            deadline_date: leadData?.deadlineDate || null,
             created_at: nowISO,
           });
       } catch (err) {
@@ -201,6 +250,8 @@ export async function POST(req: NextRequest) {
           payment_status: "completed",
           lead_status: leadData?.status || "Follow Up Again",
           notes_json: initialNotes,
+          money_received: numMoney,
+          deadline_date: leadData?.deadlineDate || null,
           created_at: nowISO,
         },
       });

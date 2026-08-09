@@ -1,6 +1,6 @@
 "use client";
 
-import { Loader2, Pencil, Plus, Trash2 } from "lucide-react";
+import { Loader2, Pencil, Plus, Trash2, ArrowUp, ArrowDown } from "lucide-react";
 import Image from "next/image";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -127,6 +127,42 @@ export function ServicesTab() {
     setDeleteTarget(null);
   };
 
+  // Move service sequence up or down
+  const handleMove = async (currentIndex: number, direction: -1 | 1) => {
+    const targetIndex = currentIndex + direction;
+    if (targetIndex < 0 || targetIndex >= services.length) return;
+
+    const currentService = services[currentIndex];
+    const targetService = services[targetIndex];
+
+    const newCurrentOrder = targetIndex + 1;
+    const newTargetOrder = currentIndex + 1;
+
+    // Optimistic state update
+    const updatedServices = [...services];
+    updatedServices[currentIndex] = { ...currentService, display_order: newCurrentOrder };
+    updatedServices[targetIndex] = { ...targetService, display_order: newTargetOrder };
+    updatedServices.sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0));
+    setServices(updatedServices);
+
+    try {
+      // Re-assign display_order sequentially for all services to clean up any duplicates
+      for (let idx = 0; idx < updatedServices.length; idx++) {
+        const item = updatedServices[idx];
+        await supabase
+          .from("services")
+          .update({ display_order: idx + 1 })
+          .eq("id", item.id);
+      }
+      toast.success(`Moved "${currentService.title}" ${direction === -1 ? "up" : "down"}`);
+      fetchServices();
+    } catch (err) {
+      console.error("Error swapping sequence:", err);
+      toast.error("Failed to update sequence");
+      fetchServices();
+    }
+  };
+
   const handleDialogClose = () => {
     setDialogOpen(false);
     setEditingService(null);
@@ -143,7 +179,12 @@ export function ServicesTab() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-semibold tracking-tight">Services</h2>
+        <div>
+          <h2 className="text-2xl font-semibold tracking-tight">Services</h2>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Use ▲ and ▼ arrows in the Sequence column to reorder services displayed on the website
+          </p>
+        </div>
         <Button onClick={handleAdd} size="default">
           <Plus className="size-4" />
           Add Service
@@ -168,6 +209,7 @@ export function ServicesTab() {
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-24">Sequence</TableHead>
               <TableHead className="w-16">Image</TableHead>
               <TableHead>Title</TableHead>
               <TableHead>Category</TableHead>
@@ -177,8 +219,39 @@ export function ServicesTab() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {services.map((service) => (
+            {services.map((service, index) => (
               <TableRow key={service.id}>
+                {/* SEQUENCE REORDERING COLUMN */}
+                <TableCell>
+                  <div className="flex items-center gap-1">
+                    <span className="font-extrabold text-xs text-muted-foreground w-6 text-center">
+                      #{index + 1}
+                    </span>
+                    <div className="flex flex-col gap-0.5">
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        disabled={index === 0}
+                        onClick={() => handleMove(index, -1)}
+                        className="size-5 p-0 text-muted-foreground hover:text-foreground disabled:opacity-30"
+                        title="Move Service Up"
+                      >
+                        <ArrowUp className="size-3" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        disabled={index === services.length - 1}
+                        onClick={() => handleMove(index, 1)}
+                        className="size-5 p-0 text-muted-foreground hover:text-foreground disabled:opacity-30"
+                        title="Move Service Down"
+                      >
+                        <ArrowDown className="size-3" />
+                      </Button>
+                    </div>
+                  </div>
+                </TableCell>
+
                 <TableCell>
                   {service.image_url ? (
                     <div className="relative size-10 overflow-hidden rounded-md border border-border">
@@ -484,7 +557,7 @@ function ServiceDialog({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="svc-order">Display Order</Label>
+            <Label htmlFor="svc-order">Display Order (Sequence)</Label>
             <Input
               id="svc-order"
               type="number"

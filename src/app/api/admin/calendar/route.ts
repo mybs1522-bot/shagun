@@ -105,24 +105,32 @@ export async function POST(req: NextRequest) {
       const key = `${date}_${time}`;
       memoryBlockedSlots.add(key);
 
-      const blockId = `block_${date.replace(/-/g, "")}_${time.replace(/[: ]/g, "")}`;
+      // Check if blocked slot already exists in DB
+      const { data: existing } = await supabaseAdmin
+        .from("service_leads")
+        .select("id")
+        .eq("appointment_date", date)
+        .eq("appointment_time", time)
+        .eq("phone", "0000000000")
+        .maybeSingle();
 
-      try {
-        await supabaseAdmin.from("service_leads").upsert(
-          {
-            id: blockId,
-            name: "Admin Blocked Slot",
-            phone: "0000000000",
-            appointment_date: date,
-            appointment_time: time,
-            payment_status: "completed",
-            lead_status: "Closed",
-            created_at: new Date().toISOString(),
-          },
-          { onConflict: "id" }
-        );
-      } catch (err) {
-        console.warn("Supabase block_slot insert notice:", err);
+      if (!existing) {
+        // Insert with valid UUID!
+        const blockId = crypto.randomUUID();
+        const { error: insertErr } = await supabaseAdmin.from("service_leads").insert({
+          id: blockId,
+          name: "Admin Blocked Slot",
+          phone: "0000000000",
+          appointment_date: date,
+          appointment_time: time,
+          payment_status: "completed",
+          lead_status: "Closed",
+          created_at: new Date().toISOString(),
+        });
+
+        if (insertErr) {
+          console.error("Failed to insert blocked slot into Supabase DB:", insertErr);
+        }
       }
 
       return NextResponse.json({ success: true, date, time, blocked: true });
@@ -136,15 +144,15 @@ export async function POST(req: NextRequest) {
       const key = `${date}_${time}`;
       memoryBlockedSlots.delete(key);
 
-      try {
-        await supabaseAdmin
-          .from("service_leads")
-          .delete()
-          .eq("appointment_date", date)
-          .eq("appointment_time", time)
-          .eq("phone", "0000000000");
-      } catch (err) {
-        console.warn("Supabase unblock_slot delete notice:", err);
+      const { error: delErr } = await supabaseAdmin
+        .from("service_leads")
+        .delete()
+        .eq("appointment_date", date)
+        .eq("appointment_time", time)
+        .eq("phone", "0000000000");
+
+      if (delErr) {
+        console.error("Failed to delete blocked slot from Supabase DB:", delErr);
       }
 
       return NextResponse.json({ success: true, date, time, blocked: false });
@@ -157,28 +165,39 @@ export async function POST(req: NextRequest) {
         const key = `${date}_${t}`;
         memoryBlockedSlots.add(key);
 
-        const blockId = `block_${date.replace(/-/g, "")}_${t.replace(/[: ]/g, "")}`;
-        try {
-          await supabaseAdmin.from("service_leads").upsert(
-            {
-              id: blockId,
-              name: "Admin Blocked Slot",
-              phone: "0000000000",
-              appointment_date: date,
-              appointment_time: t,
-              payment_status: "completed",
-              lead_status: "Closed",
-              created_at: new Date().toISOString(),
-            },
-            { onConflict: "id" }
-          );
+        // Check if blocked slot exists in DB
+        const { data: existing } = await supabaseAdmin
+          .from("service_leads")
+          .select("id")
+          .eq("appointment_date", date)
+          .eq("appointment_time", t)
+          .eq("phone", "0000000000")
+          .maybeSingle();
+
+        if (!existing) {
+          const blockId = crypto.randomUUID();
+          const { error: insertErr } = await supabaseAdmin.from("service_leads").insert({
+            id: blockId,
+            name: "Admin Blocked Slot",
+            phone: "0000000000",
+            appointment_date: date,
+            appointment_time: t,
+            payment_status: "completed",
+            lead_status: "Closed",
+            created_at: new Date().toISOString(),
+          });
+
+          if (!insertErr) {
+            insertedSlots.push(t);
+          } else {
+            console.error(`Failed to block slot ${t} for ${date}:`, insertErr);
+          }
+        } else {
           insertedSlots.push(t);
-        } catch (err) {
-          console.warn(`Error upserting blocked slot ${key}:`, err);
         }
       }
 
-      return NextResponse.json({ success: true, date, blockedSlots: AVAILABLE_TIMES });
+      return NextResponse.json({ success: true, date, blockedSlots: insertedSlots });
     }
 
     if (action === "unblock_day") {
@@ -186,14 +205,14 @@ export async function POST(req: NextRequest) {
         memoryBlockedSlots.delete(`${date}_${t}`);
       });
 
-      try {
-        await supabaseAdmin
-          .from("service_leads")
-          .delete()
-          .eq("appointment_date", date)
-          .eq("phone", "0000000000");
-      } catch (err) {
-        console.warn("Supabase unblock_day delete notice:", err);
+      const { error: delErr } = await supabaseAdmin
+        .from("service_leads")
+        .delete()
+        .eq("appointment_date", date)
+        .eq("phone", "0000000000");
+
+      if (delErr) {
+        console.error("Failed to unblock day from Supabase DB:", delErr);
       }
 
       return NextResponse.json({ success: true, date, unblocked: true });

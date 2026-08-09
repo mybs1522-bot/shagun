@@ -179,7 +179,16 @@ export function ServiceLeadsTab() {
       toast.error("Failed to load service leads");
       console.error(error);
     } else {
-      const loadedLeads = (data as unknown as ServiceLead[]) || [];
+      const rawLeads = (data as unknown as ServiceLead[]) || [];
+      const loadedLeads = rawLeads.filter(
+        (l) =>
+          !(
+            l.phone === "0000000000" ||
+            l.name === "Admin Blocked Slot" ||
+            l.id?.startsWith("block_") ||
+            l.id?.startsWith("mem_block_")
+          )
+      );
       setLeads(loadedLeads);
 
       const mInputs: Record<string, string> = {};

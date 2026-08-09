@@ -67,6 +67,7 @@ const CATEGORY_SUGGESTIONS = [
 export function ServicesTab() {
   const [services, setServices] = useState<Service[]>([]);
   const [loading, setLoading] = useState(true);
+  const [reordering, setReordering] = useState(false);
 
   // Dialog state
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -78,6 +79,19 @@ export function ServicesTab() {
 
   const fetchServices = useCallback(async () => {
     setLoading(true);
+    try {
+      const res = await fetch("/api/admin/services");
+      if (res.ok) {
+        const json = await res.json();
+        if (json.services) {
+          setServices(json.services as Service[]);
+          setLoading(false);
+          return;
+        }
+      }
+    } catch {}
+
+    // Fallback to client Supabase
     const { data, error } = await supabase
       .from("services")
       .select("*")
@@ -110,56 +124,76 @@ export function ServicesTab() {
     if (!deleteTarget) return;
     setDeleting(true);
 
-    const { error } = await supabase
-      .from("services")
-      .delete()
-      .eq("id", deleteTarget.id);
+    try {
+      const res = await fetch("/api/admin/services", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "delete_service",
+          serviceId: deleteTarget.id,
+        }),
+      });
 
-    if (error) {
-      toast.error("Failed to delete service");
-      console.error(error);
-    } else {
+      if (!res.ok) throw new Error("Failed to delete service");
+
       toast.success("Service deleted");
       fetchServices();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to delete service");
+      console.error(err);
+    } finally {
+      setDeleting(false);
+      setDeleteTarget(null);
     }
-
-    setDeleting(false);
-    setDeleteTarget(null);
   };
 
-  // Move service sequence up or down
+  // Move service sequence up or down via Server Admin API
   const handleMove = async (currentIndex: number, direction: -1 | 1) => {
     const targetIndex = currentIndex + direction;
     if (targetIndex < 0 || targetIndex >= services.length) return;
 
-    const currentService = services[currentIndex];
-    const targetService = services[targetIndex];
+    setReordering(true);
 
-    const newCurrentOrder = targetIndex + 1;
-    const newTargetOrder = currentIndex + 1;
-
-    // Optimistic state update
+    // Create a reordered copy
     const updatedServices = [...services];
-    updatedServices[currentIndex] = { ...currentService, display_order: newCurrentOrder };
-    updatedServices[targetIndex] = { ...targetService, display_order: newTargetOrder };
-    updatedServices.sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0));
-    setServices(updatedServices);
+    const temp = updatedServices[currentIndex];
+    updatedServices[currentIndex] = updatedServices[targetIndex];
+    updatedServices[targetIndex] = temp;
+
+    // Assign sequential display_order: 1, 2, 3...
+    const reorderedItems = updatedServices.map((item, index) => ({
+      id: item.id,
+      display_order: index + 1,
+    }));
+
+    // Optimistic UI update
+    const optimisticServices = updatedServices.map((item, index) => ({
+      ...item,
+      display_order: index + 1,
+    }));
+    setServices(optimisticServices);
 
     try {
-      // Re-assign display_order sequentially for all services to clean up any duplicates
-      for (let idx = 0; idx < updatedServices.length; idx++) {
-        const item = updatedServices[idx];
-        await supabase
-          .from("services")
-          .update({ display_order: idx + 1 })
-          .eq("id", item.id);
-      }
-      toast.success(`Moved "${currentService.title}" ${direction === -1 ? "up" : "down"}`);
+      const res = await fetch("/api/admin/services", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "reorder",
+          reorderedItems,
+        }),
+      });
+
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Failed to save sequence");
+
+      toast.success("Service sequence saved! Reflects live on homepage.");
       fetchServices();
-    } catch (err) {
+    } catch (err: any) {
       console.error("Error swapping sequence:", err);
-      toast.error("Failed to update sequence");
+      toast.error(err.message || "Failed to update sequence");
       fetchServices();
+    } finally {
+      setReordering(false);
     }
   };
 
@@ -182,7 +216,7 @@ export function ServicesTab() {
         <div>
           <h2 className="text-2xl font-semibold tracking-tight">Services</h2>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Use ▲ and ▼ arrows in the Sequence column to reorder services displayed on the website
+            Use ▲ and ▼ arrows in the Sequence column to reorder services displayed on the homepage
           </p>
         </div>
         <Button onClick={handleAdd} size="default">
@@ -209,7 +243,7 @@ export function ServicesTab() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-24">Sequence</TableHead>
+              <TableHead className="w-28">Sequence</TableHead>
               <TableHead className="w-16">Image</TableHead>
               <TableHead>Title</TableHead>
               <TableHead>Category</TableHead>
@@ -231,7 +265,7 @@ export function ServicesTab() {
                       <Button
                         variant="outline"
                         size="icon"
-                        disabled={index === 0}
+                        disabled={index === 0 || reordering}
                         onClick={() => handleMove(index, -1)}
                         className="size-5 p-0 text-muted-foreground hover:text-foreground disabled:opacity-30"
                         title="Move Service Up"
@@ -241,7 +275,7 @@ export function ServicesTab() {
                       <Button
                         variant="outline"
                         size="icon"
-                        disabled={index === services.length - 1}
+                        disabled={index === services.length - 1 || reordering}
                         onClick={() => handleMove(index, 1)}
                         className="size-5 p-0 text-muted-foreground hover:text-foreground disabled:opacity-30"
                         title="Move Service Down"
@@ -431,26 +465,28 @@ function ServiceDialog({
       is_active: form.is_active,
     };
 
-    let error;
+    try {
+      const res = await fetch("/api/admin/services", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "save_service",
+          serviceId: service?.id,
+          payload,
+        }),
+      });
 
-    if (isEditing) {
-      ({ error } = await supabase
-        .from("services")
-        .update(payload)
-        .eq("id", service.id));
-    } else {
-      ({ error } = await supabase.from("services").insert(payload));
-    }
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Failed to save service");
 
-    if (error) {
-      toast.error(isEditing ? "Failed to update service" : "Failed to add service");
-      console.error(error);
-    } else {
       toast.success(isEditing ? "Service updated" : "Service added");
       onSaved();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to save service");
+      console.error(err);
+    } finally {
+      setSaving(false);
     }
-
-    setSaving(false);
   };
 
   return (

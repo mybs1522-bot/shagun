@@ -1,34 +1,46 @@
 import { Phone, LayoutPanelTop, Package, Calculator, Wallet } from "lucide-react";
 import React from "react";
 
-import { supabase } from "@/lib/supabase";
+import { getSupabaseAdmin } from "@/lib/supabase";
 
 import { Service } from "../../types/services";
-import { Panel, PanelHeader, PanelTitle } from "../panel";
+import { Panel } from "../panel";
 import { ServiceItem } from "./service-item";
 
 async function getServices(): Promise<Service[]> {
-  const { data, error } = await supabase
-    .from("services")
-    .select("*")
-    .eq("is_active", true)
-    .order("display_order", { ascending: true });
+  try {
+    const supabaseAdmin = getSupabaseAdmin();
+    const { data, error } = await supabaseAdmin
+      .from("services")
+      .select("*")
+      .eq("is_active", true)
+      .order("display_order", { ascending: true });
 
-  if (error) {
-    console.error("Failed to fetch services:", error);
+    if (error) {
+      console.error("Failed to fetch services:", error);
+      return [];
+    }
+
+    return data ?? [];
+  } catch (err) {
+    console.error("Error in getServices:", err);
     return [];
   }
-
-  return data ?? [];
 }
 
 function groupByCategory(services: Service[]) {
   const groups: Record<string, Service[]> = {};
   for (const service of services) {
-    const cat = service.category;
+    const cat = service.category || "CONSULTATION CALL";
     if (!groups[cat]) groups[cat] = [];
     groups[cat].push(service);
   }
+
+  // Ensure items within every category are strictly sorted by display_order ascending
+  Object.keys(groups).forEach((cat) => {
+    groups[cat].sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0));
+  });
+
   return groups;
 }
 

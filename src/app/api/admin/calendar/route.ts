@@ -44,17 +44,29 @@ export async function GET() {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    const leads = data || [];
+    const rawLeads = data || [];
 
-    // Overlay memory blocked slots if not already in leads
+    // Filter out unpaid/pending leads! Only keep completed payments OR admin-blocked slots!
+    const validLeads = rawLeads.filter((l: any) => {
+      const isPaid = l.payment_status === "completed";
+      const isAdminBlocked =
+        l.phone === "0000000000" ||
+        l.name === "Admin Blocked Slot" ||
+        l.id?.startsWith("block_") ||
+        l.id?.startsWith("mem_block_");
+
+      return isPaid || isAdminBlocked;
+    });
+
+    // Overlay memory blocked slots if not already in validLeads
     const existingKeys = new Set(
-      leads.map((l: any) => `${l.appointment_date}_${l.appointment_time}`)
+      validLeads.map((l: any) => `${l.appointment_date}_${l.appointment_time}`)
     );
 
     memoryBlockedSlots.forEach((key) => {
       if (!existingKeys.has(key)) {
         const [date, time] = key.split("_");
-        leads.push({
+        validLeads.push({
           id: `mem_block_${key}`,
           name: "Admin Blocked Slot",
           phone: "0000000000",
@@ -68,7 +80,7 @@ export async function GET() {
       }
     });
 
-    return NextResponse.json({ slots: leads });
+    return NextResponse.json({ slots: validLeads });
   } catch (err: any) {
     console.error("Admin GET calendar route error:", err);
     return NextResponse.json({ error: err.message || "Server error" }, { status: 500 });
@@ -96,16 +108,19 @@ export async function POST(req: NextRequest) {
       const blockId = `block_${date.replace(/-/g, "")}_${time.replace(/[: ]/g, "")}`;
 
       try {
-        await supabaseAdmin.from("service_leads").insert({
-          id: blockId,
-          name: "Admin Blocked Slot",
-          phone: "0000000000",
-          appointment_date: date,
-          appointment_time: time,
-          payment_status: "completed",
-          lead_status: "Closed",
-          created_at: new Date().toISOString(),
-        });
+        await supabaseAdmin.from("service_leads").upsert(
+          {
+            id: blockId,
+            name: "Admin Blocked Slot",
+            phone: "0000000000",
+            appointment_date: date,
+            appointment_time: time,
+            payment_status: "completed",
+            lead_status: "Closed",
+            created_at: new Date().toISOString(),
+          },
+          { onConflict: "id" }
+        );
       } catch (err) {
         console.warn("Supabase block_slot insert notice:", err);
       }
@@ -144,18 +159,23 @@ export async function POST(req: NextRequest) {
 
         const blockId = `block_${date.replace(/-/g, "")}_${t.replace(/[: ]/g, "")}`;
         try {
-          await supabaseAdmin.from("service_leads").insert({
-            id: blockId,
-            name: "Admin Blocked Slot",
-            phone: "0000000000",
-            appointment_date: date,
-            appointment_time: t,
-            payment_status: "completed",
-            lead_status: "Closed",
-            created_at: new Date().toISOString(),
-          });
+          await supabaseAdmin.from("service_leads").upsert(
+            {
+              id: blockId,
+              name: "Admin Blocked Slot",
+              phone: "0000000000",
+              appointment_date: date,
+              appointment_time: t,
+              payment_status: "completed",
+              lead_status: "Closed",
+              created_at: new Date().toISOString(),
+            },
+            { onConflict: "id" }
+          );
           insertedSlots.push(t);
-        } catch {}
+        } catch (err) {
+          console.warn(`Error upserting blocked slot ${key}:`, err);
+        }
       }
 
       return NextResponse.json({ success: true, date, blockedSlots: AVAILABLE_TIMES });

@@ -86,40 +86,62 @@ export function ServiceDialog({
     if (open) {
       const fetchBookedSlots = async () => {
         try {
+          const res = await fetch("/api/admin/calendar");
+          if (res.ok) {
+            const json = await res.json();
+            if (json.slots) {
+              const slotsMap: Record<string, string[]> = {};
+              json.slots.forEach((s: any) => {
+                const isPaid = s.payment_status === "completed";
+                const isAdminBlocked =
+                  s.phone === "0000000000" ||
+                  s.name === "Admin Blocked Slot" ||
+                  s.id?.startsWith("block_") ||
+                  s.id?.startsWith("mem_block_");
+
+                if (isPaid || isAdminBlocked) {
+                  const dStr = s.appointment_date;
+                  const tStr = s.appointment_time;
+                  if (!slotsMap[dStr]) slotsMap[dStr] = [];
+                  if (!slotsMap[dStr].includes(tStr)) {
+                    slotsMap[dStr].push(tStr);
+                  }
+                }
+              });
+              setDynamicBookedSlots(slotsMap);
+              return;
+            }
+          }
+        } catch (err) {
+          console.error("Error fetching calendar API:", err);
+        }
+
+        // Fallback to client Supabase
+        try {
           const { data, error } = await supabase
             .from("service_leads")
-            .select("appointment_date, appointment_time")
+            .select("appointment_date, appointment_time, payment_status, phone, name")
             .not("appointment_date", "is", null)
             .not("appointment_time", "is", null);
 
           if (error) throw error;
 
-          const slots: Record<string, string[]> = {};
+          const slotsMap: Record<string, string[]> = {};
+          (data || []).forEach((lead: any) => {
+            const isPaid = lead.payment_status === "completed";
+            const isAdminBlocked =
+              lead.phone === "0000000000" || lead.name === "Admin Blocked Slot";
 
-          // Seed 2-3 random slots for today and tomorrow
-          const todayStr = dayjs().format("YYYY-MM-DD");
-          const tomorrowStr = dayjs().add(1, "day").format("YYYY-MM-DD");
-
-          const getRandomSlots = () => {
-            const shuffled = [...availableTimes].sort(() => 0.5 - Math.random());
-            const count = Math.floor(Math.random() * 2) + 2; // 2 or 3
-            return shuffled.slice(0, count);
-          };
-
-          slots[todayStr] = getRandomSlots();
-          slots[tomorrowStr] = getRandomSlots();
-
-          data.forEach((lead: any) => {
-            const dateStr = lead.appointment_date;
-            const timeStr = lead.appointment_time;
-            if (!slots[dateStr]) {
-              slots[dateStr] = [];
-            }
-            if (!slots[dateStr].includes(timeStr)) {
-              slots[dateStr].push(timeStr);
+            if (isPaid || isAdminBlocked) {
+              const dateStr = lead.appointment_date;
+              const timeStr = lead.appointment_time;
+              if (!slotsMap[dateStr]) slotsMap[dateStr] = [];
+              if (!slotsMap[dateStr].includes(timeStr)) {
+                slotsMap[dateStr].push(timeStr);
+              }
             }
           });
-          setDynamicBookedSlots(slots);
+          setDynamicBookedSlots(slotsMap);
         } catch (err) {
           console.error("Error fetching booked slots:", err);
         }

@@ -17,14 +17,14 @@ import {
   Send,
   PlusCircle,
   CheckCircle2,
-  Calendar,
+  Calendar as CalendarIcon,
   IndianRupee,
   Save,
   Check,
   MessageCircle,
   Receipt,
   AlertCircle,
-  CreditCard,
+  X,
 } from "lucide-react";
 import React, { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -117,6 +117,10 @@ export function ServiceLeadsTab() {
 
   // Saved feedback highlights
   const [savedSuccess, setSavedSuccess] = useState<Record<string, boolean>>({});
+
+  // Active lead for Deadline Calendar Modal
+  const [calendarTargetLead, setCalendarTargetLead] = useState<ServiceLead | null>(null);
+  const [calendarViewMonth, setCalendarViewMonth] = useState<dayjs.Dayjs>(dayjs());
 
   // New lead form modal
   const [showAddLeadModal, setShowAddLeadModal] = useState(false);
@@ -353,7 +357,7 @@ export function ServiceLeadsTab() {
     }
   };
 
-  // Save deadline date
+  // Save deadline date via calendar selection
   const handleSaveDeadline = async (leadId: string, deadlineDate: string) => {
     setActionLoading(`deadline_${leadId}`);
     try {
@@ -372,9 +376,11 @@ export function ServiceLeadsTab() {
 
       toast.success(
         deadlineDate
-          ? `Deadline updated to ${dayjs(deadlineDate).format("MMM D, YYYY")}`
+          ? `Deadline set to ${dayjs(deadlineDate).format("MMM D, YYYY")}`
           : "Deadline cleared"
       );
+
+      setDeadlineInputs((prev) => ({ ...prev, [leadId]: deadlineDate }));
       setLeads((prev) =>
         prev.map((l) => (l.id === leadId ? { ...l, deadline_date: deadlineDate } : l))
       );
@@ -388,6 +394,7 @@ export function ServiceLeadsTab() {
       toast.error(err.message || "Error saving deadline");
     } finally {
       setActionLoading(null);
+      setCalendarTargetLead(null);
     }
   };
 
@@ -502,9 +509,6 @@ export function ServiceLeadsTab() {
     return sum + (typeof iVal === "number" ? iVal : parseFloat(iVal || "0"));
   }, 0);
 
-  // Pending expected balance
-  const pendingExpectedBalance = Math.max(0, totalInvoicedAmount - totalMoneyReceived);
-
   // Counts for payment status filter tabs
   const completedPaymentCount = leads.filter((l) => l.payment_status === "completed").length;
   const pendingPaymentCount = leads.filter((l) => l.payment_status !== "completed").length;
@@ -535,6 +539,50 @@ export function ServiceLeadsTab() {
     }
   };
 
+  // Helper for generating monthly calendar grid
+  const renderCalendarDays = (targetLead: ServiceLead) => {
+    const startOfMonth = calendarViewMonth.startOf("month");
+    const endOfMonth = calendarViewMonth.endOf("month");
+    const startDayOfWeek = startOfMonth.day(); // 0 (Sun) to 6 (Sat)
+    const daysInMonth = calendarViewMonth.daysInMonth();
+
+    const selectedStr = deadlineInputs[targetLead.id] || targetLead.deadline_date || "";
+    const todayStr = dayjs().format("YYYY-MM-DD");
+
+    const days = [];
+
+    // Empty cells for leading days
+    for (let i = 0; i < startDayOfWeek; i++) {
+      days.push(<div key={`empty_${i}`} className="h-8" />);
+    }
+
+    // Days of current month
+    for (let day = 1; day <= daysInMonth; day++) {
+      const dateObj = calendarViewMonth.date(day);
+      const dateStr = dateObj.format("YYYY-MM-DD");
+      const isSelected = selectedStr === dateStr;
+      const isToday = todayStr === dateStr;
+
+      days.push(
+        <button
+          key={dateStr}
+          onClick={() => handleSaveDeadline(targetLead.id, dateStr)}
+          className={`h-8 w-8 rounded-lg text-xs font-semibold flex items-center justify-center transition-all ${
+            isSelected
+              ? "bg-amber-500 text-white font-bold shadow-md scale-105"
+              : isToday
+              ? "border border-amber-500 text-amber-400 font-bold bg-amber-500/10"
+              : "hover:bg-muted text-foreground"
+          }`}
+        >
+          {day}
+        </button>
+      );
+    }
+
+    return days;
+  };
+
   return (
     <div className="space-y-6 w-full">
       {/* FINANCIAL METRICS & STATUS COUNTERS */}
@@ -546,7 +594,7 @@ export function ServiceLeadsTab() {
               Money Received
             </span>
             <span className="rounded-lg bg-emerald-500/20 p-1.5 text-emerald-400">
-              <IndianRupee className="size-3.5" />
+              <IndianRupee className="size-4" />
             </span>
           </div>
           <p className="mt-1.5 text-xl font-black text-emerald-400">
@@ -561,7 +609,7 @@ export function ServiceLeadsTab() {
               Total Invoices
             </span>
             <span className="rounded-lg bg-blue-500/20 p-1.5 text-blue-400">
-              <Receipt className="size-3.5" />
+              <Receipt className="size-4" />
             </span>
           </div>
           <p className="mt-1.5 text-xl font-black text-blue-400">
@@ -798,7 +846,7 @@ export function ServiceLeadsTab() {
                 <TableHead className="min-w-[120px]">Appointment</TableHead>
                 <TableHead className="min-w-[130px]">Payment</TableHead>
                 <TableHead className="min-w-[180px]">Money Received &amp; Invoice (₹)</TableHead>
-                <TableHead className="min-w-[140px]">Deadline Date</TableHead>
+                <TableHead className="min-w-[150px]">Deadline Calendar</TableHead>
                 <TableHead className="min-w-[150px]">Status (Select)</TableHead>
                 <TableHead className="text-right min-w-[90px]">Notes</TableHead>
               </TableRow>
@@ -819,7 +867,6 @@ export function ServiceLeadsTab() {
 
                 const isMoneySaved = !!savedSuccess[`m_${lead.id}`];
                 const isInvoiceSaved = !!savedSuccess[`i_${lead.id}`];
-                const isDeadlineSaved = !!savedSuccess[`d_${lead.id}`];
                 const waUrl = getWhatsAppUrl(lead.phone);
 
                 return (
@@ -976,32 +1023,34 @@ export function ServiceLeadsTab() {
                         )}
                       </TableCell>
 
-                      {/* Deadline Date Entry (ONLY SHOWN WHEN PAYMENT IS COMPLETED) */}
+                      {/* DEADLINE DATE ENTRY VIA INTERACTIVE CALENDAR MODAL */}
                       <TableCell className="py-3">
                         {isPaid ? (
-                          <>
-                            <div className="flex items-center gap-1.5">
-                              <input
-                                type="date"
-                                value={deadlineVal}
-                                onChange={(e) => {
-                                  const val = e.target.value;
-                                  setDeadlineInputs({ ...deadlineInputs, [lead.id]: val });
-                                  handleSaveDeadline(lead.id, val);
-                                }}
-                                className="w-full rounded-md border border-input bg-background px-2 py-1 text-xs font-medium text-foreground outline-none focus:ring-1 focus:ring-primary cursor-pointer"
-                              />
-                              {isDeadlineSaved && (
-                                <Check className="size-3.5 text-emerald-400 shrink-0" />
-                              )}
-                            </div>
+                          <div>
+                            <Button
+                              variant="outline"
+                              size="default"
+                              onClick={() => {
+                                setCalendarTargetLead(lead);
+                                const curD = deadlineVal ? dayjs(deadlineVal) : dayjs();
+                                setCalendarViewMonth(curD);
+                              }}
+                              className={`h-8 text-xs font-semibold gap-1.5 transition-all ${
+                                deadlineVal
+                                  ? "border-amber-500/50 bg-amber-500/10 text-amber-400 hover:bg-amber-500/20"
+                                  : "text-muted-foreground hover:text-foreground"
+                              }`}
+                            >
+                              <CalendarIcon className="size-3.5 text-amber-500" />
+                              {deadlineVal ? dayjs(deadlineVal).format("MMM D, YYYY") : "Set Deadline"}
+                            </Button>
+
                             {deadlineVal && (
-                              <div className="text-[10px] text-amber-500 font-medium mt-1 flex items-center gap-1">
-                                <Calendar className="size-3 shrink-0" />
-                                Target: {dayjs(deadlineVal).format("MMM D, YYYY")}
+                              <div className="text-[10px] text-amber-500 font-medium mt-1">
+                                Target Deadline
                               </div>
                             )}
-                          </>
+                          </div>
                         ) : (
                           <span className="text-muted-foreground text-xs font-medium italic">—</span>
                         )}
@@ -1204,6 +1253,124 @@ export function ServiceLeadsTab() {
           </div>
         )}
       </div>
+
+      {/* INTERACTIVE DEADLINE CALENDAR PICKER MODAL */}
+      {calendarTargetLead && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="w-full max-w-sm rounded-2xl border border-border bg-card p-5 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <div>
+                <h3 className="text-sm font-bold text-foreground">
+                  Set Project Deadline
+                </h3>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Client: <span className="font-semibold text-foreground">{calendarTargetLead.name}</span>
+                </p>
+              </div>
+              <button
+                onClick={() => setCalendarTargetLead(null)}
+                className="text-muted-foreground hover:text-foreground rounded-lg p-1 hover:bg-muted"
+              >
+                <X className="size-4" />
+              </button>
+            </div>
+
+            {/* CALENDAR MONTH NAVIGATOR */}
+            <div className="flex items-center justify-between px-1">
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() =>
+                  setCalendarViewMonth((prev) => prev.subtract(1, "month"))
+                }
+                className="h-7 w-7"
+              >
+                <ChevronLeft className="size-3.5" />
+              </Button>
+              <span className="text-sm font-bold text-foreground">
+                {calendarViewMonth.format("MMMM YYYY")}
+              </span>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() =>
+                  setCalendarViewMonth((prev) => prev.add(1, "month"))
+                }
+                className="h-7 w-7"
+              >
+                <ChevronRight className="size-3.5" />
+              </Button>
+            </div>
+
+            {/* WEEKDAY HEADERS */}
+            <div className="grid grid-cols-7 text-center text-[11px] font-bold text-muted-foreground">
+              <span>Su</span>
+              <span>Mo</span>
+              <span>Tu</span>
+              <span>We</span>
+              <span>Th</span>
+              <span>Fr</span>
+              <span>Sa</span>
+            </div>
+
+            {/* MONTHLY CALENDAR DAY GRID */}
+            <div className="grid grid-cols-7 gap-1 place-items-center">
+              {renderCalendarDays(calendarTargetLead)}
+            </div>
+
+            {/* QUICK PRESET BUTTONS */}
+            <div className="pt-2 border-t border-border flex flex-wrap items-center justify-between gap-1.5 text-xs">
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="outline"
+                  size="default"
+                  onClick={() =>
+                    handleSaveDeadline(calendarTargetLead.id, dayjs().format("YYYY-MM-DD"))
+                  }
+                  className="h-7 text-[10px] px-2"
+                >
+                  Today
+                </Button>
+                <Button
+                  variant="outline"
+                  size="default"
+                  onClick={() =>
+                    handleSaveDeadline(
+                      calendarTargetLead.id,
+                      dayjs().add(7, "day").format("YYYY-MM-DD")
+                    )
+                  }
+                  className="h-7 text-[10px] px-2"
+                >
+                  +7 Days
+                </Button>
+                <Button
+                  variant="outline"
+                  size="default"
+                  onClick={() =>
+                    handleSaveDeadline(
+                      calendarTargetLead.id,
+                      dayjs().add(14, "day").format("YYYY-MM-DD")
+                    )
+                  }
+                  className="h-7 text-[10px] px-2"
+                >
+                  +14 Days
+                </Button>
+              </div>
+
+              <Button
+                variant="ghost"
+                size="default"
+                onClick={() => handleSaveDeadline(calendarTargetLead.id, "")}
+                className="h-7 text-[10px] px-2 text-destructive hover:bg-destructive/10"
+              >
+                Clear
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* CREATE NEW LEAD MODAL */}
       {showAddLeadModal && (

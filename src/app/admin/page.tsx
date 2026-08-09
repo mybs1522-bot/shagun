@@ -1,6 +1,6 @@
 "use client";
 
-import { Loader2, Lock, LogOut } from "lucide-react";
+import { Loader2, Lock, LogOut, Calendar as CalendarIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 import { BooksTab } from "./components/books-tab";
+import { CalendarTab } from "./components/calendar-tab";
 import { LeadsTab } from "./components/leads-tab";
 import { ProjectsTab } from "./components/projects-tab";
 import { ReviewsTab } from "./components/reviews-tab";
@@ -146,9 +147,13 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
   return (
     <Tabs defaultValue="service-leads" className="w-full">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-4">
-        <TabsList className="flex flex-wrap h-auto w-full max-w-3xl justify-start gap-2 bg-transparent">
+        <TabsList className="flex flex-wrap h-auto w-full max-w-4xl justify-start gap-2 bg-transparent">
           <TabsTrigger value="service-leads" className="data-[state=active]:bg-muted font-semibold">
             Service Leads
+          </TabsTrigger>
+          <TabsTrigger value="calendar" className="data-[state=active]:bg-muted font-semibold flex items-center gap-1.5">
+            <CalendarIcon className="size-3.5 text-primary" />
+            Calendar
           </TabsTrigger>
           <TabsTrigger value="services" className="data-[state=active]:bg-muted">
             Services
@@ -180,6 +185,10 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
       
       <TabsContent value="service-leads" className="border rounded-xl p-6 bg-card shadow-sm mt-0">
         <ServiceLeadsTab />
+      </TabsContent>
+
+      <TabsContent value="calendar" className="border rounded-xl p-6 bg-card shadow-sm mt-0">
+        <CalendarTab />
       </TabsContent>
 
       <TabsContent value="services" className="border rounded-xl p-6 bg-card shadow-sm">

@@ -135,6 +135,22 @@ export function ServiceLeadsTab() {
     initialNote: "",
   });
 
+  const isRealClientLead = (l: ServiceLead) => {
+    if (!l) return false;
+    const name = String(l.name || "").toLowerCase().trim();
+    const phoneDigits = String(l.phone || "").replace(/\D/g, "");
+    const idStr = String(l.id || "");
+
+    const isBlocked =
+      name.includes("blocked") ||
+      phoneDigits === "0000000000" ||
+      phoneDigits.endsWith("0000000000") ||
+      idStr.startsWith("block_") ||
+      idStr.startsWith("mem_block_");
+
+    return !isBlocked;
+  };
+
   const fetchLeads = useCallback(async () => {
     setLoading(true);
     try {
@@ -142,7 +158,7 @@ export function ServiceLeadsTab() {
       if (res.ok) {
         const json = await res.json();
         if (json.leads) {
-          const loadedLeads = (json.leads || []) as ServiceLead[];
+          const loadedLeads = ((json.leads || []) as ServiceLead[]).filter(isRealClientLead);
           setLeads(loadedLeads);
 
           // Populate inputs
@@ -180,15 +196,7 @@ export function ServiceLeadsTab() {
       console.error(error);
     } else {
       const rawLeads = (data as unknown as ServiceLead[]) || [];
-      const loadedLeads = rawLeads.filter(
-        (l) =>
-          !(
-            l.phone === "0000000000" ||
-            l.name === "Admin Blocked Slot" ||
-            l.id?.startsWith("block_") ||
-            l.id?.startsWith("mem_block_")
-          )
-      );
+      const loadedLeads = rawLeads.filter(isRealClientLead);
       setLeads(loadedLeads);
 
       const mInputs: Record<string, string> = {};
@@ -232,6 +240,8 @@ export function ServiceLeadsTab() {
 
   // Filter leads by search, lead_status, and payment_status
   const filteredLeads = leads.filter((lead) => {
+    if (!isRealClientLead(lead)) return false;
+
     const serviceName = lead.services?.title || "";
     const matchesSearch =
       lead.name.toLowerCase().includes(search.toLowerCase()) ||

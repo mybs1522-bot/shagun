@@ -42,15 +42,21 @@ export async function GET() {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    // Filter out admin-blocked slots (phone = "0000000000") so they do not show up as completed payments or client leads
+    // Filter out admin-blocked slots so they never show up as completed payments or client leads
     const realLeads = (data || []).filter((lead: any) => {
-      const isAdminBlocked =
-        lead.phone === "0000000000" ||
-        lead.name === "Admin Blocked Slot" ||
-        lead.id?.startsWith("block_") ||
-        lead.id?.startsWith("mem_block_");
+      if (!lead) return false;
+      const name = String(lead.name || "").toLowerCase().trim();
+      const phoneDigits = String(lead.phone || "").replace(/\D/g, "");
+      const idStr = String(lead.id || "");
 
-      return !isAdminBlocked;
+      const isBlocked =
+        name.includes("blocked") ||
+        phoneDigits === "0000000000" ||
+        phoneDigits.endsWith("0000000000") ||
+        idStr.startsWith("block_") ||
+        idStr.startsWith("mem_block_");
+
+      return !isBlocked;
     });
 
     // Overlay in-memory status, notes, money received, total invoice, and deadline dates

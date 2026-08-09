@@ -1,6 +1,16 @@
 "use client";
 
-import { Loader2, Pencil, Plus, Trash2, Upload } from "lucide-react";
+import {
+  Loader2,
+  Pencil,
+  Plus,
+  Trash2,
+  Upload,
+  ShoppingBag,
+  IndianRupee,
+  BookOpen,
+  CheckCircle2,
+} from "lucide-react";
 import Image from "next/image";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -44,8 +54,15 @@ const EMPTY_FORM = {
   preview_images: [] as string[],
 };
 
+export type BookSalesStats = {
+  totalLeads: number;
+  paidSales: number;
+  revenue: number;
+};
+
 export function BooksTab() {
   const [books, setBooks] = useState<Book[]>([]);
+  const [salesStats, setSalesStats] = useState<Record<string, BookSalesStats>>({});
   const [loading, setLoading] = useState(true);
 
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -54,25 +71,63 @@ export function BooksTab() {
   const [deleteTarget, setDeleteTarget] = useState<Book | null>(null);
   const [deleting, setDeleting] = useState(false);
 
-  const fetchBooks = useCallback(async () => {
+  const fetchBooksAndSales = useCallback(async () => {
     setLoading(true);
-    const { data, error } = await supabase
+
+    // 1. Fetch books
+    const { data: booksData, error: booksError } = await supabase
       .from("books")
       .select("*")
       .order("display_order", { ascending: true });
 
-    if (error) {
+    if (booksError) {
       toast.error("Failed to load books");
-      console.error(error);
+      console.error(booksError);
     } else {
-      setBooks(data as Book[]);
+      setBooks((booksData as Book[]) || []);
     }
+
+    // 2. Fetch sales/leads metrics per book
+    try {
+      const { data: leadsData, error: leadsError } = await supabase
+        .from("book_leads")
+        .select("book_id, payment_status");
+
+      if (!leadsError && leadsData) {
+        const statsMap: Record<string, BookSalesStats> = {};
+
+        leadsData.forEach((lead) => {
+          const bId = lead.book_id;
+          if (!statsMap[bId]) {
+            statsMap[bId] = { totalLeads: 0, paidSales: 0, revenue: 0 };
+          }
+          statsMap[bId].totalLeads += 1;
+
+          // Check paid status
+          if (lead.payment_status === "completed") {
+            statsMap[bId].paidSales += 1;
+          }
+        });
+
+        // Calculate revenue for each book
+        (booksData as Book[] || []).forEach((b) => {
+          if (statsMap[b.id]) {
+            statsMap[b.id].revenue = statsMap[b.id].paidSales * (b.price || 0);
+          }
+        });
+
+        setSalesStats(statsMap);
+      }
+    } catch (err) {
+      console.error("Error fetching book sales stats:", err);
+    }
+
     setLoading(false);
   }, []);
 
   useEffect(() => {
-    fetchBooks();
-  }, [fetchBooks]);
+    fetchBooksAndSales();
+  }, [fetchBooksAndSales]);
 
   const handleAdd = () => {
     setEditingBook(null);
@@ -98,7 +153,7 @@ export function BooksTab() {
       console.error(error);
     } else {
       toast.success("Book deleted");
-      fetchBooks();
+      fetchBooksAndSales();
     }
 
     setDeleting(false);
@@ -110,10 +165,70 @@ export function BooksTab() {
     setEditingBook(null);
   };
 
+  // Overall E-Book sales metrics
+  const totalPaidSalesCount = Object.values(salesStats).reduce(
+    (sum, s) => sum + s.paidSales,
+    0
+  );
+  const totalRevenueAmount = books.reduce((sum, b) => {
+    const paid = salesStats[b.id]?.paidSales || 0;
+    return sum + paid * (b.price || 0);
+  }, 0);
+
   return (
     <div className="space-y-6">
+      {/* SUMMARY CARDS */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-muted-foreground">
+              Total Books
+            </span>
+            <span className="rounded-lg bg-primary/10 p-1.5 text-primary">
+              <BookOpen className="size-4" />
+            </span>
+          </div>
+          <p className="mt-2 text-2xl font-black text-foreground">
+            {books.length}
+          </p>
+        </div>
+
+        <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4 shadow-sm">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-emerald-400">
+              Paid Sales Done
+            </span>
+            <span className="rounded-lg bg-emerald-500/20 p-1.5 text-emerald-400">
+              <ShoppingBag className="size-4" />
+            </span>
+          </div>
+          <p className="mt-2 text-2xl font-black text-emerald-400 flex items-center gap-2">
+            {totalPaidSalesCount} <span className="text-xs font-semibold opacity-80">sales</span>
+          </p>
+        </div>
+
+        <div className="rounded-xl border border-blue-500/30 bg-blue-500/10 p-4 shadow-sm">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-blue-400">
+              Total Book Revenue
+            </span>
+            <span className="rounded-lg bg-blue-500/20 p-1.5 text-blue-400">
+              <IndianRupee className="size-4" />
+            </span>
+          </div>
+          <p className="mt-2 text-2xl font-black text-blue-400">
+            ₹{totalRevenueAmount.toLocaleString("en-IN")}
+          </p>
+        </div>
+      </div>
+
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-semibold tracking-tight">Free Books</h2>
+        <div>
+          <h2 className="text-2xl font-semibold tracking-tight">Free &amp; Paid Books</h2>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Manage e-books, prices, links, and track paid sales performance
+          </p>
+        </div>
         <Button onClick={handleAdd} size="default">
           <Plus className="size-4" />
           Add Book
@@ -140,85 +255,108 @@ export function BooksTab() {
             <TableRow>
               <TableHead className="w-16">Thumbnail</TableHead>
               <TableHead>Title</TableHead>
-              <TableHead>Link</TableHead>
               <TableHead>Price</TableHead>
-              <TableHead>PDF Link</TableHead>
+              <TableHead className="text-center">Paid Sales Done</TableHead>
+              <TableHead className="text-right">Total Revenue</TableHead>
+              <TableHead>Link</TableHead>
               <TableHead className="text-center">Status</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {books.map((book) => (
-              <TableRow key={book.id}>
-                <TableCell>
-                  {book.thumbnail_url ? (
-                    <div className="relative size-10 overflow-hidden rounded-md border border-border">
-                      <Image
-                        src={book.thumbnail_url}
-                        alt={book.title}
-                        fill
-                        className="object-cover"
-                        sizes="40px"
-                      />
-                    </div>
-                  ) : (
-                    <div className="flex size-10 items-center justify-center rounded-md border border-border bg-muted text-xs text-muted-foreground">
-                      N/A
-                    </div>
-                  )}
-                </TableCell>
-                <TableCell className="font-medium">{book.title}</TableCell>
-                <TableCell>
-                  <a href={book.link} target="_blank" rel="noreferrer" className="text-blue-500 hover:underline max-w-[150px] truncate block">
-                    {book.link}
-                  </a>
-                </TableCell>
-                <TableCell className="font-medium text-emerald-600 dark:text-emerald-400">
-                  {book.price > 0 ? `₹${book.price}` : "Free"}
-                </TableCell>
-                <TableCell>
-                  {book.pdf_url ? (
-                    <a href={book.pdf_url} target="_blank" rel="noreferrer" className="text-blue-500 hover:underline max-w-[150px] truncate block">
-                      {book.pdf_url}
-                    </a>
-                  ) : (
-                    <span className="text-muted-foreground italic text-xs">No PDF</span>
-                  )}
-                </TableCell>
-                <TableCell className="text-center">
-                  <Badge
-                    variant={book.is_active ? "default" : "secondary"}
-                    className={cn(
-                      "text-xs",
-                      book.is_active
-                        ? "bg-success/15 text-success"
-                        : "bg-muted text-muted-foreground"
+            {books.map((book) => {
+              const stats = salesStats[book.id] || { totalLeads: 0, paidSales: 0, revenue: 0 };
+              const bookRevenue = stats.paidSales * (book.price || 0);
+
+              return (
+                <TableRow key={book.id}>
+                  <TableCell>
+                    {book.thumbnail_url ? (
+                      <div className="relative size-10 overflow-hidden rounded-md border border-border">
+                        <Image
+                          src={book.thumbnail_url}
+                          alt={book.title}
+                          fill
+                          className="object-cover"
+                          sizes="40px"
+                        />
+                      </div>
+                    ) : (
+                      <div className="flex size-10 items-center justify-center rounded-md border border-border bg-muted text-xs text-muted-foreground">
+                        N/A
+                      </div>
                     )}
-                  >
-                    {book.is_active ? "Active" : "Inactive"}
-                  </Badge>
-                </TableCell>
-                <TableCell className="text-right">
-                  <div className="flex items-center justify-end gap-1">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleEdit(book)}
+                  </TableCell>
+                  <TableCell className="font-medium">{book.title}</TableCell>
+                  <TableCell className="font-semibold text-emerald-600 dark:text-emerald-400">
+                    {book.price > 0 ? `₹${book.price}` : "Free"}
+                  </TableCell>
+
+                  {/* PAID SALES DONE COUNTER */}
+                  <TableCell className="text-center">
+                    <span
+                      className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold border ${
+                        stats.paidSales > 0
+                          ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30"
+                          : "bg-muted text-muted-foreground border-border"
+                      }`}
                     >
-                      <Pencil className="size-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => setDeleteTarget(book)}
-                      className="text-destructive hover:text-destructive"
+                      <CheckCircle2 className="size-3.5" />
+                      {stats.paidSales} {stats.paidSales === 1 ? "Sale" : "Sales"}
+                    </span>
+                  </TableCell>
+
+                  {/* REVENUE */}
+                  <TableCell className="text-right font-mono font-bold text-xs">
+                    ₹{bookRevenue.toLocaleString("en-IN")}
+                  </TableCell>
+
+                  <TableCell>
+                    <a
+                      href={book.link}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-blue-500 hover:underline max-w-[130px] truncate block text-xs"
                     >
-                      <Trash2 className="size-4" />
-                    </Button>
-                  </div>
-                </TableCell>
-              </TableRow>
-            ))}
+                      {book.link}
+                    </a>
+                  </TableCell>
+
+                  <TableCell className="text-center">
+                    <Badge
+                      variant={book.is_active ? "default" : "secondary"}
+                      className={cn(
+                        "text-xs",
+                        book.is_active
+                          ? "bg-success/15 text-success"
+                          : "bg-muted text-muted-foreground"
+                      )}
+                    >
+                      {book.is_active ? "Active" : "Inactive"}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex items-center justify-end gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleEdit(book)}
+                      >
+                        <Pencil className="size-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setDeleteTarget(book)}
+                        className="text-destructive hover:text-destructive"
+                      >
+                        <Trash2 className="size-4" />
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
           </TableBody>
         </Table>
       )}
@@ -226,7 +364,10 @@ export function BooksTab() {
       <BookDialog
         open={dialogOpen}
         onClose={handleDialogClose}
-        onSaved={() => { handleDialogClose(); fetchBooks(); }}
+        onSaved={() => {
+          handleDialogClose();
+          fetchBooksAndSales();
+        }}
         book={editingBook}
       />
 
@@ -327,8 +468,6 @@ function BookDialog({
         return;
       }
 
-      console.log("Upload succeeded:", uploadData);
-
       const { data: publicUrlData } = supabase.storage
         .from("book-covers")
         .getPublicUrl(filePath);
@@ -340,7 +479,6 @@ function BookDialog({
       toast.error(`Failed to upload cover image: ${err?.message || "Unknown error"}`);
     } finally {
       setUploadingCover(false);
-      // Reset file input so same file can be re-selected
       e.target.value = "";
     }
   };

@@ -9,6 +9,7 @@ import {
   Check,
   ChevronDown,
   Copy,
+  Download,
   Eye,
   EyeOff,
   FileSpreadsheet,
@@ -573,8 +574,8 @@ export function InvoiceGeneratorTab() {
       const safeClient = (clientName || "Client").trim().replace(/[^a-zA-Z0-9_-]/g, "_");
       const filename = `${invoiceNumber || "Invoice"}_${safeClient}.pdf`;
 
-      const opt = {
-        margin: [0, 0, 0, 0],
+      const opt: any = {
+        margin: 0,
         filename: filename,
         image: { type: "jpeg", quality: 0.98 },
         html2canvas: {

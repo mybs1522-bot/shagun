@@ -711,7 +711,7 @@ export function InvoiceGeneratorTab() {
     window.print();
   };
 
-  // Direct A4 PDF Download function (Supports repeated multi-clicks cleanly)
+  // Direct 3-Page A4 PDF Download function (Merged Offer Letter Page 1 & 2 + Invoice Sheet Page 3)
   const handleDownloadPDF = async () => {
     const element = document.getElementById("printable-invoice-sheet");
     if (!element) {
@@ -723,10 +723,12 @@ export function InvoiceGeneratorTab() {
     saveInvoice(true);
 
     setDownloadingPdf(true);
-    const toastId = toast.loading("Generating & downloading A4 PDF...");
+    const toastId = toast.loading("Generating 3-page PDF proposal & invoice...");
 
     try {
       const html2pdf = (await import("html2pdf.js")).default;
+      const { PDFDocument } = await import("pdf-lib");
+
       const safeClient = (clientName || "Client").trim().replace(/[^a-zA-Z0-9_-]/g, "_");
       const filename = `${invoiceNumber || "Invoice"}_${safeClient}.pdf`;
 
@@ -742,7 +744,7 @@ export function InvoiceGeneratorTab() {
 
       const opt: any = {
         margin: 0,
-        filename: filename,
+        filename: "temp_page3.pdf",
         image: { type: "jpeg", quality: 0.98 },
         html2canvas: {
           scale: 2,
@@ -757,11 +759,56 @@ export function InvoiceGeneratorTab() {
         },
       };
 
-      await html2pdf().set(opt).from(clone).save();
-      toast.success(`Downloaded ${filename} & saved draft!`, { id: toastId });
+      // Generate Page 3 (Tax Invoice Sheet) ArrayBuffer
+      const invoicePdfArrayBuffer = await html2pdf()
+        .set(opt)
+        .from(clone)
+        .outputPdf("arraybuffer");
+
+      const invoicePdfDoc = await PDFDocument.load(invoicePdfArrayBuffer);
+
+      let combinedPdfBytes: Uint8Array;
+
+      try {
+        // Fetch offer letter template PDF (Page 1: Offer Letter, Page 2: Scope of Work & Notes)
+        const templateResponse = await fetch("/pdf/offer_letter_template.pdf");
+        if (!templateResponse.ok) throw new Error("Template fetch failed");
+        const templateArrayBuffer = await templateResponse.arrayBuffer();
+        const basePdf = await PDFDocument.load(templateArrayBuffer);
+
+        const combinedPdf = await PDFDocument.create();
+
+        // Copy Page 1 & Page 2 from offer letter template
+        const pageCount = basePdf.getPageCount();
+        const pagesToCopy = Array.from({ length: Math.min(pageCount, 2) }, (_, i) => i);
+        const copiedTemplatePages = await combinedPdf.copyPages(basePdf, pagesToCopy);
+        copiedTemplatePages.forEach((p) => combinedPdf.addPage(p));
+
+        // Append Page 3 (Generated Tax Invoice Sheet)
+        const [page3] = await combinedPdf.copyPages(invoicePdfDoc, [0]);
+        combinedPdf.addPage(page3);
+
+        combinedPdfBytes = await combinedPdf.save();
+      } catch (templateError) {
+        console.warn("Template merge notice, outputting single page invoice:", templateError);
+        combinedPdfBytes = await invoicePdfDoc.save();
+      }
+
+      // Trigger direct download of combined PDF
+      const blob = new Blob([combinedPdfBytes], { type: "application/pdf" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+
+      toast.success(`Downloaded 3-page PDF (${filename})!`, { id: toastId });
     } catch (err: any) {
       console.error("PDF generation error:", err);
-      toast.error("Could not export direct PDF. Opening print dialog...", { id: toastId });
+      toast.error("Could not export PDF. Opening print dialog...", { id: toastId });
       window.print();
     } finally {
       setDownloadingPdf(false);

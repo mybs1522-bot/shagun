@@ -726,54 +726,48 @@ export function InvoiceGeneratorTab() {
     const toastId = toast.loading("Generating 3-page PDF proposal & invoice...");
 
     try {
-      const html2pdf = (await import("html2pdf.js")).default;
+      const html2canvas = (await import("html2canvas")).default;
+      const { jsPDF } = await import("jspdf");
       const { PDFDocument } = await import("pdf-lib");
 
       const safeClient = (clientName || "Client").trim().replace(/[^a-zA-Z0-9_-]/g, "_");
       const filename = `${invoiceNumber || "Invoice"}_${safeClient}.pdf`;
 
-      // Create a detached clone of the invoice element so live DOM is untouched
-      const clone = element.cloneNode(true) as HTMLElement;
-      clone.style.margin = "0";
-      clone.style.boxShadow = "none";
-      clone.style.borderRadius = "0";
+      // 1. Capture the visible sheet into high-res canvas
+      const canvas = await html2canvas(element, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        backgroundColor: "#ffffff",
+      });
 
-      // Remove contentEditable attributes in clone to avoid PDF cursor lines
-      const editables = clone.querySelectorAll("[contenteditable]");
-      editables.forEach((el) => el.removeAttribute("contenteditable"));
+      const imgData = canvas.toDataURL("image/jpeg", 0.98);
 
-      const opt: any = {
-        margin: 0,
-        filename: "temp_page3.pdf",
-        image: { type: "jpeg", quality: 0.98 },
-        html2canvas: {
-          scale: 2,
-          useCORS: true,
-          logging: false,
-          letterRendering: true,
-        },
-        jsPDF: {
-          unit: "mm",
-          format: "a4",
-          orientation: "portrait",
-        },
-      };
+      // 2. Build Page 3 using jsPDF
+      const invoicePdf = new jsPDF({
+        orientation: "portrait",
+        unit: "mm",
+        format: "a4",
+      });
 
-      // Generate Page 3 (Tax Invoice Sheet) ArrayBuffer
-      const invoicePdfArrayBuffer = await html2pdf()
-        .set(opt)
-        .from(clone)
-        .outputPdf("arraybuffer");
+      const pdfWidth = invoicePdf.internal.pageSize.getWidth();
+      const pdfHeight = invoicePdf.internal.pageSize.getHeight();
+      invoicePdf.addImage(imgData, "JPEG", 0, 0, pdfWidth, pdfHeight);
 
-      const invoicePdfDoc = await PDFDocument.load(invoicePdfArrayBuffer);
+      const invoiceArrayBuffer = invoicePdf.output("arraybuffer");
+      const invoicePdfDoc = await PDFDocument.load(invoiceArrayBuffer);
 
       let combinedPdfBytes: Uint8Array;
 
       try {
-        // Fetch offer letter template PDF (Page 1: Offer Letter, Page 2: Scope of Work & Notes)
-        const templateResponse = await fetch("/pdf/offer_letter_template.pdf");
-        if (!templateResponse.ok) throw new Error("Template fetch failed");
-        const templateArrayBuffer = await templateResponse.arrayBuffer();
+        // Fetch Offer Letter template (try /api/admin/template-pdf then /pdf/offer_letter_template.pdf)
+        let templateRes = await fetch("/api/admin/template-pdf");
+        if (!templateRes.ok) {
+          templateRes = await fetch("/pdf/offer_letter_template.pdf");
+        }
+        if (!templateRes.ok) throw new Error("Template fetch failed");
+
+        const templateArrayBuffer = await templateRes.arrayBuffer();
         const basePdf = await PDFDocument.load(templateArrayBuffer);
 
         const combinedPdf = await PDFDocument.create();
@@ -794,7 +788,7 @@ export function InvoiceGeneratorTab() {
         combinedPdfBytes = await invoicePdfDoc.save();
       }
 
-      // Trigger direct download of combined PDF
+      // 3. Trigger direct download
       const blob = new Blob([combinedPdfBytes], { type: "application/pdf" });
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
@@ -803,11 +797,11 @@ export function InvoiceGeneratorTab() {
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      setTimeout(() => URL.revokeObjectURL(url), 1500);
 
       toast.success(`Downloaded 3-page PDF (${filename})!`, { id: toastId });
     } catch (err: any) {
-      console.error("PDF generation error:", err);
+      console.error("3-Page PDF generation error:", err);
       toast.error("Could not export PDF. Opening print dialog...", { id: toastId });
       window.print();
     } finally {

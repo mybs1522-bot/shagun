@@ -30,12 +30,18 @@ importers:
       googleapis:
         specifier: ^173.0.0
         version: 173.0.0
+      html2canvas:
+        specifier: ^1.4.1
+        version: 1.4.1
       html2pdf.js:
         specifier: ^0.14.0
         version: 0.14.0
       jotai:
         specifier: ^2.12.2
         version: 2.12.2(@types/react@19.1.2)(react@19.1.0)
+      jspdf:
+        specifier: ^4.2.1
+        version: 4.2.1
       libphonenumber-js:
         specifier: ^1.12.4
         version: 1.12.5

@@ -840,22 +840,19 @@ export function InvoiceGeneratorTab() {
     );
 
     try {
-      const html2canvas = (await import("html2canvas")).default;
+      const { toJpeg } = await import("html-to-image");
       const { jsPDF } = await import("jspdf");
       const { PDFDocument } = await import("pdf-lib");
 
       const safeClient = (clientName || "Client").trim().replace(/[^a-zA-Z0-9_-]/g, "_");
       const filename = `${invoiceNumber || "Invoice"}_${safeClient}.pdf`;
 
-      // 1. Capture the visible sheet into high-res canvas
-      const canvas = await html2canvas(element, {
-        scale: 2,
-        useCORS: true,
-        logging: false,
+      // 1. Capture the visible sheet into high-res JPEG using html-to-image (natively supports all modern CSS: lab, oklch, Tailwind v4)
+      const imgData = await toJpeg(element, {
+        quality: 0.98,
+        pixelRatio: 2,
         backgroundColor: "#ffffff",
       });
-
-      const imgData = canvas.toDataURL("image/jpeg", 0.98);
 
       // 2. Build Invoice Page using jsPDF
       const invoicePdf = new jsPDF({

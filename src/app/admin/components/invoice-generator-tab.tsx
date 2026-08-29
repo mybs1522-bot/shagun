@@ -12,6 +12,7 @@ import {
   Download,
   Eye,
   EyeOff,
+  FilePlus,
   FileSpreadsheet,
   FileText,
   History,
@@ -28,6 +29,7 @@ import {
   Send,
   Sparkles,
   Trash2,
+  Upload,
   UserCheck,
 } from "lucide-react";
 import Image from "next/image";
@@ -57,6 +59,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { cn } from "@/lib/cn";
+import { OFFER_LETTER_TEMPLATE_BASE64 } from "@/lib/offer-letter-template-base64";
 import { supabase } from "@/lib/supabase";
 
 // ---------------------------------------------------------------------------
@@ -201,6 +204,17 @@ function generateInvoiceNumber(): string {
   return `INV-${dateStr}-${rand}`;
 }
 
+// Convert base64 string to Uint8Array
+function base64ToUint8Array(base64: string): Uint8Array {
+  const binaryString = atob(base64);
+  const len = binaryString.length;
+  const bytes = new Uint8Array(len);
+  for (let i = 0; i < len; i++) {
+    bytes[i] = binaryString.charCodeAt(i);
+  }
+  return bytes;
+}
+
 export function InvoiceGeneratorTab() {
   // Master state
   const [invoiceNumber, setInvoiceNumber] = useState(generateInvoiceNumber());
@@ -257,6 +271,14 @@ export function InvoiceGeneratorTab() {
   const [newServiceInput, setNewServiceInput] = useState("");
   const [customServiceDialogOpen, setCustomServiceDialogOpen] = useState(false);
 
+  // Attached PDF Merge State (Persists until manually deleted!)
+  const [attachedPdfBase64, setAttachedPdfBase64] = useState<string>("");
+  const [attachedPdfName, setAttachedPdfName] = useState<string>("");
+  const [attachedPdfPageCount, setAttachedPdfPageCount] = useState<number>(0);
+  const [enablePdfMerge, setEnablePdfMerge] = useState<boolean>(true);
+  const [mergePdfDialogOpen, setMergePdfDialogOpen] = useState<boolean>(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
   // History & Leads Dialog state
   const [savedInvoices, setSavedInvoices] = useState<InvoiceData[]>([]);
   const [leadsList, setLeadsList] = useState<any[]>([]);
@@ -264,7 +286,7 @@ export function InvoiceGeneratorTab() {
   const [leadsDialogOpen, setLeadsDialogOpen] = useState(false);
   const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
 
-  // Load saved invoices, custom quick services & active working draft from localStorage
+  // Load saved invoices, custom quick services, active working draft & attached merge PDF
   useEffect(() => {
     try {
       const storedInvoices = localStorage.getItem("arch_saved_invoices");
@@ -275,6 +297,27 @@ export function InvoiceGeneratorTab() {
       if (storedQuick) {
         setCustomServices(JSON.parse(storedQuick));
       }
+
+      // Load Attached Merge PDF from localStorage (defaults to 2-page Offer Letter)
+      const storedPdf = localStorage.getItem("arch_attached_merge_pdf");
+      const storedPdfName = localStorage.getItem("arch_attached_merge_pdf_name");
+      if (storedPdf) {
+        setAttachedPdfBase64(storedPdf);
+        setAttachedPdfName(storedPdfName || "Offer_Letter_2_Pages.pdf");
+        import("pdf-lib").then(({ PDFDocument }) => {
+          PDFDocument.load(base64ToUint8Array(storedPdf))
+            .then((doc) => setAttachedPdfPageCount(doc.getPageCount()))
+            .catch(() => setAttachedPdfPageCount(2));
+        });
+      } else if (OFFER_LETTER_TEMPLATE_BASE64) {
+        setAttachedPdfBase64(OFFER_LETTER_TEMPLATE_BASE64);
+        setAttachedPdfName("Offer_Letter_2_Pages.pdf");
+        setAttachedPdfPageCount(2);
+        localStorage.setItem("arch_attached_merge_pdf", OFFER_LETTER_TEMPLATE_BASE64);
+        localStorage.setItem("arch_attached_merge_pdf_name", "Offer_Letter_2_Pages.pdf");
+      }
+
+      // Load active working draft
       const activeDraft = localStorage.getItem("arch_active_working_draft");
       if (activeDraft) {
         const draft: InvoiceData = JSON.parse(activeDraft);
@@ -386,6 +429,73 @@ export function InvoiceGeneratorTab() {
     showWatermark,
     rows,
   ]);
+
+  // Upload/Replace Attached PDF Handler
+  const handlePdfUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
+      toast.error("Please upload a valid PDF file");
+      return;
+    }
+
+    const toastId = toast.loading("Processing and saving PDF...");
+    try {
+      const reader = new FileReader();
+      reader.onload = async (event) => {
+        try {
+          const arrayBuffer = event.target?.result as ArrayBuffer;
+          const { PDFDocument } = await import("pdf-lib");
+          const doc = await PDFDocument.load(arrayBuffer);
+          const pageCount = doc.getPageCount();
+
+          const bytes = new Uint8Array(arrayBuffer);
+          let binary = "";
+          const len = bytes.byteLength;
+          for (let i = 0; i < len; i++) {
+            binary += String.fromCharCode(bytes[i]);
+          }
+          const base64 = btoa(binary);
+
+          setAttachedPdfBase64(base64);
+          setAttachedPdfName(file.name);
+          setAttachedPdfPageCount(pageCount);
+          setEnablePdfMerge(true);
+
+          localStorage.setItem("arch_attached_merge_pdf", base64);
+          localStorage.setItem("arch_attached_merge_pdf_name", file.name);
+
+          toast.success(`Attached "${file.name}" (${pageCount} page${pageCount > 1 ? "s" : ""})!`, { id: toastId });
+          setMergePdfDialogOpen(false);
+        } catch (err: any) {
+          toast.error("Failed to parse PDF: " + (err?.message || "Invalid PDF"), { id: toastId });
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    } catch (err: any) {
+      toast.error("Error reading file", { id: toastId });
+    }
+  };
+
+  const removeAttachedPdf = () => {
+    setAttachedPdfBase64("");
+    setAttachedPdfName("");
+    setAttachedPdfPageCount(0);
+    localStorage.removeItem("arch_attached_merge_pdf");
+    localStorage.removeItem("arch_attached_merge_pdf_name");
+    toast.info("Attached PDF removed. Invoices will now export as single-page.");
+  };
+
+  const restoreDefaultOfferLetter = async () => {
+    setAttachedPdfBase64(OFFER_LETTER_TEMPLATE_BASE64);
+    setAttachedPdfName("Offer_Letter_2_Pages.pdf");
+    setAttachedPdfPageCount(2);
+    setEnablePdfMerge(true);
+    localStorage.setItem("arch_attached_merge_pdf", OFFER_LETTER_TEMPLATE_BASE64);
+    localStorage.setItem("arch_attached_merge_pdf_name", "Offer_Letter_2_Pages.pdf");
+    toast.success("Restored default 2-page Offer Letter PDF!");
+  };
 
   // Custom Quick Add Service Handlers
   const addCustomQuickService = () => {
@@ -711,18 +821,7 @@ export function InvoiceGeneratorTab() {
     window.print();
   };
 
-  // Helper to convert base64 string to Uint8Array reliably
-  const base64ToUint8Array = (base64: string): Uint8Array => {
-    const binaryString = atob(base64);
-    const len = binaryString.length;
-    const bytes = new Uint8Array(len);
-    for (let i = 0; i < len; i++) {
-      bytes[i] = binaryString.charCodeAt(i);
-    }
-    return bytes;
-  };
-
-  // Direct 3-Page A4 PDF Download function (Merged Offer Letter Page 1 & 2 + Invoice Sheet Page 3)
+  // Direct PDF Download function (Merges attached PDF pages + Invoice sheet as final page)
   const handleDownloadPDF = async () => {
     const element = document.getElementById("printable-invoice-sheet");
     if (!element) {
@@ -734,15 +833,16 @@ export function InvoiceGeneratorTab() {
     saveInvoice(true);
 
     setDownloadingPdf(true);
-    const toastId = toast.loading("Generating 3-page PDF proposal & invoice...");
+    const toastId = toast.loading(
+      enablePdfMerge && attachedPdfBase64
+        ? `Merging ${attachedPdfPageCount} PDF pages with Invoice...`
+        : "Generating Invoice PDF..."
+    );
 
     try {
       const html2canvas = (await import("html2canvas")).default;
       const { jsPDF } = await import("jspdf");
       const { PDFDocument } = await import("pdf-lib");
-      const { OFFER_LETTER_TEMPLATE_BASE64 } = await import(
-        "@/lib/offer-letter-template-base64"
-      );
 
       const safeClient = (clientName || "Client").trim().replace(/[^a-zA-Z0-9_-]/g, "_");
       const filename = `${invoiceNumber || "Invoice"}_${safeClient}.pdf`;
@@ -757,7 +857,7 @@ export function InvoiceGeneratorTab() {
 
       const imgData = canvas.toDataURL("image/jpeg", 0.98);
 
-      // 2. Build Page 3 using jsPDF
+      // 2. Build Invoice Page using jsPDF
       const invoicePdf = new jsPDF({
         orientation: "portrait",
         unit: "mm",
@@ -769,35 +869,36 @@ export function InvoiceGeneratorTab() {
       invoicePdf.addImage(imgData, "JPEG", 0, 0, pdfWidth, pdfHeight);
 
       const invoiceArrayBuffer = invoicePdf.output("arraybuffer");
-      const invoicePdfDoc = await PDFDocument.load(invoiceArrayBuffer);
 
-      // 3. Load Embedded Offer Letter Template (Page 1: Offer Letter, Page 2: Scope of Work & Notes)
-      const templateBytes = base64ToUint8Array(OFFER_LETTER_TEMPLATE_BASE64);
-      const basePdf = await PDFDocument.load(templateBytes);
+      let finalPdfBytes: Uint8Array;
 
-      // 4. Merge into a unified 3-page PDF document
-      const combinedPdf = await PDFDocument.create();
+      // 3. If PDF Merge is enabled and attached PDF exists:
+      if (enablePdfMerge && attachedPdfBase64) {
+        const invoicePdfDoc = await PDFDocument.load(invoiceArrayBuffer);
+        const basePdf = await PDFDocument.load(base64ToUint8Array(attachedPdfBase64));
 
-      // Copy Page 1 & Page 2 from offer letter template
-      const pageCount = basePdf.getPageCount();
-      const pagesToCopy = Array.from(
-        { length: Math.min(pageCount, 2) },
-        (_, i) => i
-      );
-      const copiedTemplatePages = await combinedPdf.copyPages(
-        basePdf,
-        pagesToCopy
-      );
-      copiedTemplatePages.forEach((p) => combinedPdf.addPage(p));
+        const combinedPdf = await PDFDocument.create();
 
-      // Append Page 3 (Generated Tax Invoice Sheet)
-      const [page3] = await combinedPdf.copyPages(invoicePdfDoc, [0]);
-      combinedPdf.addPage(page3);
+        // Copy all pages from attached PDF (Page 1, 2, ...)
+        const pageCount = basePdf.getPageCount();
+        const pagesToCopy = Array.from({ length: pageCount }, (_, i) => i);
+        const copiedAttachedPages = await combinedPdf.copyPages(
+          basePdf,
+          pagesToCopy
+        );
+        copiedAttachedPages.forEach((p) => combinedPdf.addPage(p));
 
-      const combinedPdfBytes = await combinedPdf.save();
+        // Append generated Tax Invoice Sheet as the final page
+        const [invoicePage] = await combinedPdf.copyPages(invoicePdfDoc, [0]);
+        combinedPdf.addPage(invoicePage);
 
-      // 5. Trigger direct download
-      const blob = new Blob([combinedPdfBytes], { type: "application/pdf" });
+        finalPdfBytes = await combinedPdf.save();
+      } else {
+        finalPdfBytes = new Uint8Array(invoiceArrayBuffer);
+      }
+
+      // 4. Trigger direct download
+      const blob = new Blob([finalPdfBytes], { type: "application/pdf" });
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
@@ -807,11 +908,11 @@ export function InvoiceGeneratorTab() {
       document.body.removeChild(link);
       setTimeout(() => URL.revokeObjectURL(url), 1500);
 
-      toast.success(`Downloaded 3-page PDF (${filename})!`, { id: toastId });
+      const totalPages = enablePdfMerge && attachedPdfBase64 ? attachedPdfPageCount + 1 : 1;
+      toast.success(`Downloaded ${totalPages}-page PDF (${filename})!`, { id: toastId });
     } catch (err: any) {
-      console.error("3-Page PDF generation error:", err);
-      toast.error("Could not export PDF. Opening print dialog...", { id: toastId });
-      window.print();
+      console.error("PDF generation error:", err);
+      toast.error("Could not export PDF: " + (err?.message || "Unknown error"), { id: toastId });
     } finally {
       setDownloadingPdf(false);
     }
@@ -867,6 +968,22 @@ export function InvoiceGeneratorTab() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          {/* Merge PDF / Attach PDF Button */}
+          <Button
+            variant="outline"
+            onClick={() => setMergePdfDialogOpen(true)}
+            className={cn(
+              "h-9 gap-1.5 text-xs font-medium border-primary/30",
+              attachedPdfBase64 && enablePdfMerge
+                ? "bg-primary/5 text-primary border-primary/50"
+                : "text-muted-foreground"
+            )}
+            title="Attach a PDF to merge before the invoice on download"
+          >
+            <FilePlus className="size-3.5 text-primary" />
+            Merge PDF {attachedPdfBase64 && enablePdfMerge ? `(${attachedPdfPageCount} Pgs)` : ""}
+          </Button>
+
           {/* Quick Import from Leads */}
           <Button
             variant="outline"
@@ -919,7 +1036,9 @@ export function InvoiceGeneratorTab() {
             ) : (
               <Download className="size-3.5" />
             )}
-            Download PDF
+            {enablePdfMerge && attachedPdfBase64
+              ? `Download Merged PDF (${attachedPdfPageCount + 1} Pgs)`
+              : "Download PDF"}
           </Button>
 
           {/* Print / Save PDF */}
@@ -1527,7 +1646,111 @@ export function InvoiceGeneratorTab() {
             </div>
           </div>
 
-          {/* 5. Payment Method & Notes Card */}
+          {/* 5. Attached PDF Merge (Offer Letter / Scope / Proposal) Card */}
+          <div className="rounded-xl border border-border bg-card p-5 shadow-xs space-y-4">
+            <div className="flex items-center justify-between border-b pb-3">
+              <div>
+                <h3 className="text-sm font-semibold flex items-center gap-2">
+                  <FileText className="size-4 text-primary" />
+                  Attached PDF for Merge
+                </h3>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Merge your Offer Letter or Proposal as the first pages before the invoice.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground">Merge on Download:</span>
+                <Switch
+                  checked={enablePdfMerge && !!attachedPdfBase64}
+                  onCheckedChange={(checked) => {
+                    if (!attachedPdfBase64) {
+                      setMergePdfDialogOpen(true);
+                    } else {
+                      setEnablePdfMerge(checked);
+                    }
+                  }}
+                  className="scale-75"
+                />
+              </div>
+            </div>
+
+            {attachedPdfBase64 ? (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between p-3 rounded-lg bg-muted/40 border border-border text-xs">
+                  <div className="space-y-0.5 min-w-0 pr-2">
+                    <div className="flex items-center gap-1.5 font-semibold text-foreground truncate">
+                      <Sparkles className="size-3 text-primary shrink-0" />
+                      <span className="truncate">{attachedPdfName}</span>
+                    </div>
+                    <p className="text-[11px] text-muted-foreground">
+                      {attachedPdfPageCount} Page{attachedPdfPageCount > 1 ? "s" : ""} • Merged as Pages 1-{attachedPdfPageCount} (Invoice on Page {attachedPdfPageCount + 1})
+                    </p>
+                  </div>
+
+                  <Badge variant="outline" className="bg-emerald-600/10 text-emerald-700 border-emerald-300 shrink-0 font-mono text-[10px]">
+                    Attached
+                  </Badge>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2 pt-1">
+                  <Button
+                    variant="outline"
+                    onClick={() => setMergePdfDialogOpen(true)}
+                    className="h-7 text-xs px-2.5 gap-1 text-primary hover:bg-primary/5"
+                  >
+                    Change PDF
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    onClick={restoreDefaultOfferLetter}
+                    className="h-7 text-xs px-2 text-muted-foreground hover:text-foreground"
+                    title="Reset back to default 2-page Offer Letter"
+                  >
+                    Reset to Default
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    onClick={removeAttachedPdf}
+                    className="h-7 text-xs px-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                    title="Remove attached PDF"
+                  >
+                    <Trash2 className="size-3 mr-1" />
+                    Remove
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-4 space-y-2 border border-dashed rounded-lg bg-muted/20">
+                <p className="text-xs text-muted-foreground">
+                  No PDF attached. Invoices will download as single-page.
+                </p>
+                <div className="flex items-center justify-center gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => setMergePdfDialogOpen(true)}
+                    className="h-7 text-xs px-3 gap-1.5 text-primary"
+                  >
+                    <Plus className="size-3" />
+                    Attach Custom PDF
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    onClick={restoreDefaultOfferLetter}
+                    className="h-7 text-xs px-3 text-muted-foreground"
+                  >
+                    Use Default Offer Letter
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            <p className="text-[11px] text-muted-foreground leading-relaxed">
+              💡 Your attached PDF is saved in your browser and will <strong>never be removed until you click delete</strong>. Every time you click &quot;Download PDF&quot;, it will automatically merge your PDF before the invoice.
+            </p>
+          </div>
+
+          {/* 6. Payment Method & Notes Card */}
           <div className="rounded-xl border border-border bg-card p-5 shadow-xs space-y-4">
             <h3 className="text-sm font-semibold border-b pb-3 flex items-center gap-2">
               <Sparkles className="size-4 text-primary" />
@@ -2066,6 +2289,88 @@ export function InvoiceGeneratorTab() {
           </div>
         </div>
       </div>
+
+      {/* ========================================================================= */}
+      {/* DIALOG: ATTACH / MERGE CUSTOM PDF                                        */}
+      {/* ========================================================================= */}
+      <Dialog open={mergePdfDialogOpen} onOpenChange={setMergePdfDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <FilePlus className="size-4 text-primary" />
+              Manage Attached PDF for Merge
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Upload any PDF document (e.g. Offer Letter, Scope of Work, Terms). It will remain saved in your browser until deleted and will be merged before the invoice every time you download.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 pt-2">
+            {attachedPdfBase64 ? (
+              <div className="p-3.5 rounded-lg border border-primary/20 bg-primary/5 space-y-2 text-xs">
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-primary flex items-center gap-1.5">
+                    <Sparkles className="size-3.5" />
+                    Currently Attached PDF
+                  </span>
+                  <Badge variant="outline" className="bg-primary/10 text-primary border-primary/30 text-[10px]">
+                    {attachedPdfPageCount} Pages
+                  </Badge>
+                </div>
+                <p className="font-mono text-xs text-foreground truncate">{attachedPdfName}</p>
+                <p className="text-[11px] text-muted-foreground">
+                  Will appear as Pages 1-{attachedPdfPageCount}, with the Tax Invoice on Page {attachedPdfPageCount + 1}.
+                </p>
+              </div>
+            ) : (
+              <div className="p-3.5 rounded-lg border border-dashed text-center text-xs text-muted-foreground space-y-1">
+                <p className="font-semibold text-foreground">No custom PDF attached</p>
+                <p className="text-[11px]">Upload a PDF below to merge it automatically with every invoice.</p>
+              </div>
+            )}
+
+            {/* Hidden file input */}
+            <input
+              type="file"
+              accept="application/pdf"
+              ref={fileInputRef}
+              onChange={handlePdfUpload}
+              className="hidden"
+            />
+
+            <div className="space-y-2">
+              <Button
+                variant="default"
+                onClick={() => fileInputRef.current?.click()}
+                className="w-full h-9 text-xs gap-2"
+              >
+                <Upload className="size-3.5" />
+                {attachedPdfBase64 ? "Upload & Replace PDF (.pdf)" : "Upload Custom PDF (.pdf)"}
+              </Button>
+
+              <div className="grid grid-cols-2 gap-2 pt-1">
+                <Button
+                  variant="outline"
+                  onClick={restoreDefaultOfferLetter}
+                  className="h-8 text-xs text-muted-foreground"
+                >
+                  Use Default Offer Letter
+                </Button>
+                {attachedPdfBase64 && (
+                  <Button
+                    variant="outline"
+                    onClick={removeAttachedPdf}
+                    className="h-8 text-xs text-destructive hover:bg-destructive/10 border-destructive/30"
+                  >
+                    <Trash2 className="size-3.5 mr-1" />
+                    Remove PDF
+                  </Button>
+                )}
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* ========================================================================= */}
       {/* DIALOG: QUICK IMPORT FROM SERVICE LEADS                                   */}

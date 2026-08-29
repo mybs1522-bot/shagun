@@ -264,7 +264,7 @@ export function InvoiceGeneratorTab() {
   const [leadsDialogOpen, setLeadsDialogOpen] = useState(false);
   const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
 
-  // Load saved invoices & custom quick services from localStorage
+  // Load saved invoices, custom quick services & active working draft from localStorage
   useEffect(() => {
     try {
       const storedInvoices = localStorage.getItem("arch_saved_invoices");
@@ -275,8 +275,117 @@ export function InvoiceGeneratorTab() {
       if (storedQuick) {
         setCustomServices(JSON.parse(storedQuick));
       }
+      const activeDraft = localStorage.getItem("arch_active_working_draft");
+      if (activeDraft) {
+        const draft: InvoiceData = JSON.parse(activeDraft);
+        if (draft.invoiceNumber) setInvoiceNumber(draft.invoiceNumber);
+        if (draft.date) setDate(draft.date);
+        if (draft.invoiceTitle) setInvoiceTitle(draft.invoiceTitle);
+        if (draft.companyName) setCompanyName(draft.companyName);
+        if (draft.tagline !== undefined) setTagline(draft.tagline);
+        if (draft.contactInfo !== undefined) setContactInfo(draft.contactInfo);
+        if (draft.addressInfo !== undefined) setAddressInfo(draft.addressInfo);
+        if (draft.showBranding !== undefined) setShowBranding(draft.showBranding);
+        if (draft.showTagline !== undefined) setShowTagline(draft.showTagline);
+        if (draft.showContact !== undefined) setShowContact(draft.showContact);
+        if (draft.showAddress !== undefined) setShowAddress(draft.showAddress);
+        if (draft.showInvoiceTitle !== undefined) setShowInvoiceTitle(draft.showInvoiceTitle);
+        if (draft.showClientSection !== undefined) setShowClientSection(draft.showClientSection);
+        if (draft.showDesignMetrics !== undefined) setShowDesignMetrics(draft.showDesignMetrics);
+        if (draft.showPaymentMethod !== undefined) setShowPaymentMethod(draft.showPaymentMethod);
+        if (draft.showNotes !== undefined) setShowNotes(draft.showNotes);
+        if (draft.showPercentageSplit !== undefined) setShowPercentageSplit(draft.showPercentageSplit);
+        if (draft.headerAlignment) setHeaderAlignment(draft.headerAlignment);
+        if (draft.clientName !== undefined) setClientName(draft.clientName);
+        if (draft.clientPhone !== undefined) setClientPhone(draft.clientPhone);
+        if (draft.clientEmail !== undefined) setClientEmail(draft.clientEmail);
+        if (draft.siteAddress !== undefined) setSiteAddress(draft.siteAddress);
+        if (draft.projectName !== undefined) setProjectName(draft.projectName);
+        if (draft.ratePerSqft !== undefined) setRatePerSqft(draft.ratePerSqft);
+        if (draft.areaSqft !== undefined) setAreaSqft(draft.areaSqft);
+        if (draft.unit) setUnit(draft.unit);
+        if (draft.taxRate !== undefined) setTaxRate(draft.taxRate);
+        if (draft.paymentMethod !== undefined) setPaymentMethod(draft.paymentMethod);
+        if (draft.notes !== undefined) setNotes(draft.notes);
+        if (draft.showWatermark !== undefined) setShowWatermark(draft.showWatermark);
+        if (draft.rows && draft.rows.length > 0) setRows(draft.rows);
+      }
     } catch {}
   }, []);
+
+  // Auto-persist working draft to localStorage on every edit
+  useEffect(() => {
+    try {
+      const activeDraft: InvoiceData = {
+        id: "active_working_draft",
+        invoiceNumber,
+        date,
+        invoiceTitle,
+        companyName,
+        tagline,
+        contactInfo,
+        addressInfo,
+        showBranding,
+        showTagline,
+        showContact,
+        showAddress,
+        showInvoiceTitle,
+        showClientSection,
+        showDesignMetrics,
+        showPaymentMethod,
+        showNotes,
+        showPercentageSplit,
+        headerAlignment,
+        clientName,
+        clientPhone,
+        clientEmail,
+        siteAddress,
+        projectName,
+        ratePerSqft,
+        areaSqft,
+        unit,
+        taxRate,
+        paymentMethod,
+        notes,
+        showWatermark,
+        rows,
+        createdAt: new Date().toISOString(),
+      };
+      localStorage.setItem("arch_active_working_draft", JSON.stringify(activeDraft));
+    } catch {}
+  }, [
+    invoiceNumber,
+    date,
+    invoiceTitle,
+    companyName,
+    tagline,
+    contactInfo,
+    addressInfo,
+    showBranding,
+    showTagline,
+    showContact,
+    showAddress,
+    showInvoiceTitle,
+    showClientSection,
+    showDesignMetrics,
+    showPaymentMethod,
+    showNotes,
+    showPercentageSplit,
+    headerAlignment,
+    clientName,
+    clientPhone,
+    clientEmail,
+    siteAddress,
+    projectName,
+    ratePerSqft,
+    areaSqft,
+    unit,
+    taxRate,
+    paymentMethod,
+    notes,
+    showWatermark,
+    rows,
+  ]);
 
   // Custom Quick Add Service Handlers
   const addCustomQuickService = () => {
@@ -498,8 +607,8 @@ export function InvoiceGeneratorTab() {
     toast.success(`Imported client: ${lead.name}`);
   };
 
-  // Save invoice to local storage
-  const saveInvoice = () => {
+  // Save invoice to local storage history
+  const saveInvoice = (silent = false) => {
     const newInvoice: InvoiceData = {
       id: "inv_" + Date.now(),
       invoiceNumber,
@@ -540,9 +649,13 @@ export function InvoiceGeneratorTab() {
     setSavedInvoices(updated);
     try {
       localStorage.setItem("arch_saved_invoices", JSON.stringify(updated));
-      toast.success(`Invoice ${invoiceNumber} saved successfully`);
+      if (!silent) {
+        toast.success(`Invoice ${invoiceNumber} saved to history`);
+      }
     } catch {
-      toast.error("Failed to save to local storage");
+      if (!silent) {
+        toast.error("Failed to save to local storage");
+      }
     }
   };
 
@@ -594,10 +707,11 @@ export function InvoiceGeneratorTab() {
 
   // Print function
   const handlePrint = () => {
+    saveInvoice(true);
     window.print();
   };
 
-  // Direct A4 PDF Download function
+  // Direct A4 PDF Download function (Supports repeated multi-clicks cleanly)
   const handleDownloadPDF = async () => {
     const element = document.getElementById("printable-invoice-sheet");
     if (!element) {
@@ -605,13 +719,26 @@ export function InvoiceGeneratorTab() {
       return;
     }
 
+    // Auto-save draft history on download
+    saveInvoice(true);
+
     setDownloadingPdf(true);
-    const toastId = toast.loading("Generating A4 PDF...");
+    const toastId = toast.loading("Generating & downloading A4 PDF...");
 
     try {
       const html2pdf = (await import("html2pdf.js")).default;
       const safeClient = (clientName || "Client").trim().replace(/[^a-zA-Z0-9_-]/g, "_");
       const filename = `${invoiceNumber || "Invoice"}_${safeClient}.pdf`;
+
+      // Create a detached clone of the invoice element so live DOM is untouched
+      const clone = element.cloneNode(true) as HTMLElement;
+      clone.style.margin = "0";
+      clone.style.boxShadow = "none";
+      clone.style.borderRadius = "0";
+
+      // Remove contentEditable attributes in clone to avoid PDF cursor lines
+      const editables = clone.querySelectorAll("[contenteditable]");
+      editables.forEach((el) => el.removeAttribute("contenteditable"));
 
       const opt: any = {
         margin: 0,
@@ -630,8 +757,8 @@ export function InvoiceGeneratorTab() {
         },
       };
 
-      await html2pdf().set(opt).from(element).save();
-      toast.success(`Downloaded ${filename}`, { id: toastId });
+      await html2pdf().set(opt).from(clone).save();
+      toast.success(`Downloaded ${filename} & saved draft!`, { id: toastId });
     } catch (err: any) {
       console.error("PDF generation error:", err);
       toast.error("Could not export direct PDF. Opening print dialog...", { id: toastId });
@@ -714,7 +841,7 @@ export function InvoiceGeneratorTab() {
           {/* Save */}
           <Button
             variant="outline"
-            onClick={saveInvoice}
+            onClick={() => saveInvoice(false)}
             className="h-9 gap-1.5 text-xs font-medium"
           >
             <Save className="size-3.5 text-emerald-600" />

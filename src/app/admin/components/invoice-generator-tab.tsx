@@ -2,11 +2,15 @@
 
 import dayjs from "dayjs";
 import {
+  AlignCenter,
+  AlignLeft,
+  Building2,
   Calculator,
   Check,
   ChevronDown,
   Copy,
-  Download,
+  Eye,
+  EyeOff,
   FileSpreadsheet,
   FileText,
   History,
@@ -71,6 +75,23 @@ export interface InvoiceData {
   id: string;
   invoiceNumber: string;
   date: string;
+  invoiceTitle: string;
+  // Business / Architect Branding
+  companyName: string;
+  tagline: string;
+  contactInfo: string;
+  addressInfo: string;
+  // Visibility toggles
+  showBranding: boolean;
+  showTagline: boolean;
+  showContact: boolean;
+  showAddress: boolean;
+  showInvoiceTitle: boolean;
+  showClientSection: boolean;
+  showDesignMetrics: boolean;
+  showPaymentMethod: boolean;
+  showNotes: boolean;
+  headerAlignment: "center" | "split";
   // Client info
   clientName: string;
   clientPhone: string;
@@ -182,6 +203,25 @@ export function InvoiceGeneratorTab() {
   // Master state
   const [invoiceNumber, setInvoiceNumber] = useState(generateInvoiceNumber());
   const [date, setDate] = useState(dayjs().format("YYYY-MM-DD"));
+  const [invoiceTitle, setInvoiceTitle] = useState("TAX INVOICE");
+
+  // Business / Architect Branding (Editable & Removable)
+  const [companyName, setCompanyName] = useState("Ar. Shagun Yadav");
+  const [tagline, setTagline] = useState("Architect & ArchBIZ Consultant");
+  const [contactInfo, setContactInfo] = useState("+91 98765 43210 | info@arshagunyadav.com");
+  const [addressInfo, setAddressInfo] = useState("Gurugram / New Delhi, NCR, India");
+
+  // Visibility toggles for all sections
+  const [showBranding, setShowBranding] = useState(true);
+  const [showTagline, setShowTagline] = useState(true);
+  const [showContact, setShowContact] = useState(true);
+  const [showAddress, setShowAddress] = useState(true);
+  const [showInvoiceTitle, setShowInvoiceTitle] = useState(true);
+  const [showClientSection, setShowClientSection] = useState(true);
+  const [showDesignMetrics, setShowDesignMetrics] = useState(true);
+  const [showPaymentMethod, setShowPaymentMethod] = useState(true);
+  const [showNotes, setShowNotes] = useState(true);
+  const [headerAlignment, setHeaderAlignment] = useState<"center" | "split">("center");
 
   // Client Details
   const [clientName, setClientName] = useState("Mr. Rajesh Sharma");
@@ -207,6 +247,7 @@ export function InvoiceGeneratorTab() {
 
   // Rows state
   const [rows, setRows] = useState<ServiceRow[]>(DEFAULT_SERVICES_PRESET);
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
 
   // History & Leads Dialog state
   const [savedInvoices, setSavedInvoices] = useState<InvoiceData[]>([]);
@@ -399,7 +440,6 @@ export function InvoiceGeneratorTab() {
     if (lead.phone) setClientPhone(lead.phone);
     if (lead.services?.title) {
       setProjectName(lead.services.title);
-      // If the first row is default, rename it to the service title
       setRows((prev) =>
         prev.map((r, i) =>
           i === 0
@@ -409,7 +449,6 @@ export function InvoiceGeneratorTab() {
       );
     }
     if (lead.total_invoice && lead.total_invoice > 0) {
-      // If lead had a specific total invoice, adjust area/rate to approximate
       const approxArea = Math.round(lead.total_invoice / ratePerSqft);
       if (approxArea > 0) {
         setAreaSqft(approxArea);
@@ -427,6 +466,21 @@ export function InvoiceGeneratorTab() {
       id: "inv_" + Date.now(),
       invoiceNumber,
       date,
+      invoiceTitle,
+      companyName,
+      tagline,
+      contactInfo,
+      addressInfo,
+      showBranding,
+      showTagline,
+      showContact,
+      showAddress,
+      showInvoiceTitle,
+      showClientSection,
+      showDesignMetrics,
+      showPaymentMethod,
+      showNotes,
+      headerAlignment,
       clientName,
       clientPhone,
       clientEmail,
@@ -456,7 +510,22 @@ export function InvoiceGeneratorTab() {
   const loadSavedInvoice = (inv: InvoiceData) => {
     setInvoiceNumber(inv.invoiceNumber);
     setDate(inv.date || dayjs().format("YYYY-MM-DD"));
-    setClientName(inv.clientName);
+    setInvoiceTitle(inv.invoiceTitle || "TAX INVOICE");
+    setCompanyName(inv.companyName || "Ar. Shagun Yadav");
+    setTagline(inv.tagline || "Architect & ArchBIZ Consultant");
+    setContactInfo(inv.contactInfo || "+91 98765 43210 | info@arshagunyadav.com");
+    setAddressInfo(inv.addressInfo || "Gurugram / New Delhi, NCR, India");
+    setShowBranding(inv.showBranding ?? true);
+    setShowTagline(inv.showTagline ?? true);
+    setShowContact(inv.showContact ?? true);
+    setShowAddress(inv.showAddress ?? true);
+    setShowInvoiceTitle(inv.showInvoiceTitle ?? true);
+    setShowClientSection(inv.showClientSection ?? true);
+    setShowDesignMetrics(inv.showDesignMetrics ?? true);
+    setShowPaymentMethod(inv.showPaymentMethod ?? true);
+    setShowNotes(inv.showNotes ?? true);
+    setHeaderAlignment(inv.headerAlignment || "center");
+    setClientName(inv.clientName || "");
     setClientPhone(inv.clientPhone || "");
     setClientEmail(inv.clientEmail || "");
     setSiteAddress(inv.siteAddress || "");
@@ -488,11 +557,55 @@ export function InvoiceGeneratorTab() {
     window.print();
   };
 
+  // Direct A4 PDF Download function
+  const handleDownloadPDF = async () => {
+    const element = document.getElementById("printable-invoice-sheet");
+    if (!element) {
+      toast.error("Invoice sheet element not found");
+      return;
+    }
+
+    setDownloadingPdf(true);
+    const toastId = toast.loading("Generating A4 PDF...");
+
+    try {
+      const html2pdf = (await import("html2pdf.js")).default;
+      const safeClient = (clientName || "Client").trim().replace(/[^a-zA-Z0-9_-]/g, "_");
+      const filename = `${invoiceNumber || "Invoice"}_${safeClient}.pdf`;
+
+      const opt = {
+        margin: [0, 0, 0, 0],
+        filename: filename,
+        image: { type: "jpeg", quality: 0.98 },
+        html2canvas: {
+          scale: 2,
+          useCORS: true,
+          logging: false,
+          letterRendering: true,
+        },
+        jsPDF: {
+          unit: "mm",
+          format: "a4",
+          orientation: "portrait",
+        },
+      };
+
+      await html2pdf().set(opt).from(element).save();
+      toast.success(`Downloaded ${filename}`, { id: toastId });
+    } catch (err: any) {
+      console.error("PDF generation error:", err);
+      toast.error("Could not export direct PDF. Opening print dialog...", { id: toastId });
+      window.print();
+    } finally {
+      setDownloadingPdf(false);
+    }
+  };
+
   // Copy WhatsApp summary
   const copyWhatsAppText = () => {
     const lines = [
       `*INVOICE: ${invoiceNumber}*`,
-      `*Ar. Shagun Yadav - Architect & ArchBIZ Consultant*`,
+      showBranding ? `*${companyName}* - ${tagline}` : "",
       `-----------------------------------------`,
       `*Client:* ${clientName}`,
       `*Project:* ${projectName}`,
@@ -512,7 +625,9 @@ export function InvoiceGeneratorTab() {
       `-----------------------------------------`,
       `*Payment Method:* ${paymentMethod}`,
       `\n_Thank you for your business!_`,
-    ].join("\n");
+    ]
+      .filter(Boolean)
+      .join("\n");
 
     navigator.clipboard.writeText(lines);
     toast.success("Invoice summary copied to clipboard for WhatsApp!");
@@ -526,11 +641,11 @@ export function InvoiceGeneratorTab() {
           <div className="flex items-center gap-2">
             <h2 className="text-2xl font-bold tracking-tight">Invoice Generator</h2>
             <Badge variant="outline" className="bg-primary/5 text-primary border-primary/20 text-xs font-mono">
-              Milestone Engine
+              A4 Studio Engine
             </Badge>
           </div>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Create, edit, and generate professional architectural invoices with percentage milestone splits, GST, and live preview.
+            Full control over every text element, alignment, milestone percentage splits, and A4 print layout.
           </p>
         </div>
 
@@ -575,14 +690,29 @@ export function InvoiceGeneratorTab() {
             Copy WhatsApp
           </Button>
 
-          {/* Print / Export PDF */}
+          {/* Download PDF */}
           <Button
             variant="default"
-            onClick={handlePrint}
+            onClick={handleDownloadPDF}
+            disabled={downloadingPdf}
             className="h-9 gap-1.5 text-xs font-semibold shadow-sm"
           >
+            {downloadingPdf ? (
+              <Loader2 className="size-3.5 animate-spin" />
+            ) : (
+              <Download className="size-3.5" />
+            )}
+            Download PDF
+          </Button>
+
+          {/* Print / Save PDF */}
+          <Button
+            variant="outline"
+            onClick={handlePrint}
+            className="h-9 gap-1.5 text-xs font-medium"
+          >
             <Printer className="size-3.5" />
-            Print / Save PDF
+            Print (A4)
           </Button>
         </div>
       </div>
@@ -593,84 +723,282 @@ export function InvoiceGeneratorTab() {
         {/* LEFT COLUMN: EDIT CONTROLS & SERVICE ROWS MANAGEMENT (Hidden in Print)  */}
         {/* ========================================================================= */}
         <div className="lg:col-span-6 space-y-6 print:hidden">
-          {/* 1. Client & Project Details Card */}
+          {/* 1. Header Branding & Alignment Card (Fully Editable & Removable) */}
           <div className="rounded-xl border border-border bg-card p-5 shadow-xs space-y-4">
             <div className="flex items-center justify-between border-b pb-3">
               <h3 className="text-sm font-semibold flex items-center gap-2">
-                <FileText className="size-4 text-primary" />
-                Client & Invoice Meta
+                <Building2 className="size-4 text-primary" />
+                Header Branding & Alignment
               </h3>
-              <Button
-                variant="ghost"
-                className="h-7 text-xs text-muted-foreground gap-1 hover:text-foreground"
-                onClick={() => setInvoiceNumber(generateInvoiceNumber())}
-              >
-                <RefreshCw className="size-3" />
-                New Number
-              </Button>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground">Alignment:</span>
+                <div className="flex items-center border border-border rounded-lg p-0.5 bg-muted/30">
+                  <button
+                    type="button"
+                    onClick={() => setHeaderAlignment("center")}
+                    className={cn(
+                      "flex items-center gap-1 px-2 py-1 text-xs rounded-md transition-colors",
+                      headerAlignment === "center"
+                        ? "bg-primary text-primary-foreground font-semibold shadow-xs"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                    title="Center aligned header"
+                  >
+                    <AlignCenter className="size-3.5" />
+                    Center
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setHeaderAlignment("split")}
+                    className={cn(
+                      "flex items-center gap-1 px-2 py-1 text-xs rounded-md transition-colors",
+                      headerAlignment === "split"
+                        ? "bg-primary text-primary-foreground font-semibold shadow-xs"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                    title="Split left-right header"
+                  >
+                    <AlignLeft className="size-3.5" />
+                    Split
+                  </button>
+                </div>
+              </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <Label className="text-xs font-medium text-muted-foreground">Invoice Number</Label>
-                <Input
-                  value={invoiceNumber}
-                  onChange={(e) => setInvoiceNumber(e.target.value)}
-                  className="h-8 text-xs font-mono font-medium mt-1"
-                />
+            <div className="space-y-3">
+              {/* Business Name */}
+              <div className="flex items-start gap-2">
+                <div className="flex-1 space-y-1">
+                  <Label className="text-xs font-medium text-muted-foreground">
+                    Business / Architect Name
+                  </Label>
+                  <Input
+                    value={companyName}
+                    onChange={(e) => setCompanyName(e.target.value)}
+                    placeholder="e.g. Ar. Shagun Yadav"
+                    className="h-8 text-xs font-semibold"
+                    disabled={!showBranding}
+                  />
+                </div>
+                <div className="pt-6">
+                  <button
+                    type="button"
+                    onClick={() => setShowBranding(!showBranding)}
+                    className={cn(
+                      "p-1.5 rounded-md border text-xs transition-colors",
+                      showBranding
+                        ? "text-primary border-primary/30 bg-primary/5"
+                        : "text-muted-foreground border-border bg-muted/40"
+                    )}
+                    title={showBranding ? "Visible on invoice (click to hide)" : "Hidden (click to show)"}
+                  >
+                    {showBranding ? <Eye className="size-4" /> : <EyeOff className="size-4" />}
+                  </button>
+                </div>
               </div>
-              <div>
-                <Label className="text-xs font-medium text-muted-foreground">Invoice Date</Label>
-                <Input
-                  type="date"
-                  value={date}
-                  onChange={(e) => setDate(e.target.value)}
-                  className="h-8 text-xs mt-1"
-                />
-              </div>
-            </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-              <div>
-                <Label className="text-xs font-medium text-muted-foreground">Client / Company Name</Label>
-                <Input
-                  value={clientName}
-                  onChange={(e) => setClientName(e.target.value)}
-                  placeholder="e.g. Rajesh Sharma"
-                  className="h-8 text-xs mt-1"
-                />
+              {/* Tagline */}
+              <div className="flex items-start gap-2">
+                <div className="flex-1 space-y-1">
+                  <Label className="text-xs font-medium text-muted-foreground">
+                    Tagline / Subtitle
+                  </Label>
+                  <Input
+                    value={tagline}
+                    onChange={(e) => setTagline(e.target.value)}
+                    placeholder="e.g. Architect & ArchBIZ Consultant"
+                    className="h-8 text-xs"
+                    disabled={!showTagline}
+                  />
+                </div>
+                <div className="pt-6">
+                  <button
+                    type="button"
+                    onClick={() => setShowTagline(!showTagline)}
+                    className={cn(
+                      "p-1.5 rounded-md border text-xs transition-colors",
+                      showTagline
+                        ? "text-primary border-primary/30 bg-primary/5"
+                        : "text-muted-foreground border-border bg-muted/40"
+                    )}
+                    title={showTagline ? "Visible on invoice (click to hide)" : "Hidden (click to show)"}
+                  >
+                    {showTagline ? <Eye className="size-4" /> : <EyeOff className="size-4" />}
+                  </button>
+                </div>
               </div>
-              <div>
-                <Label className="text-xs font-medium text-muted-foreground">Phone / WhatsApp</Label>
-                <Input
-                  value={clientPhone}
-                  onChange={(e) => setClientPhone(e.target.value)}
-                  placeholder="+91 98765 43210"
-                  className="h-8 text-xs mt-1"
-                />
+
+              {/* Contact Info */}
+              <div className="flex items-start gap-2">
+                <div className="flex-1 space-y-1">
+                  <Label className="text-xs font-medium text-muted-foreground">
+                    Phone & Email Line
+                  </Label>
+                  <Input
+                    value={contactInfo}
+                    onChange={(e) => setContactInfo(e.target.value)}
+                    placeholder="e.g. +91 98765 43210 | info@arshagunyadav.com"
+                    className="h-8 text-xs"
+                    disabled={!showContact}
+                  />
+                </div>
+                <div className="pt-6">
+                  <button
+                    type="button"
+                    onClick={() => setShowContact(!showContact)}
+                    className={cn(
+                      "p-1.5 rounded-md border text-xs transition-colors",
+                      showContact
+                        ? "text-primary border-primary/30 bg-primary/5"
+                        : "text-muted-foreground border-border bg-muted/40"
+                    )}
+                    title={showContact ? "Visible on invoice (click to hide)" : "Hidden (click to show)"}
+                  >
+                    {showContact ? <Eye className="size-4" /> : <EyeOff className="size-4" />}
+                  </button>
+                </div>
               </div>
-              <div className="sm:col-span-2">
-                <Label className="text-xs font-medium text-muted-foreground">Project / Scope Title</Label>
-                <Input
-                  value={projectName}
-                  onChange={(e) => setProjectName(e.target.value)}
-                  placeholder="e.g. Residential Interior Design"
-                  className="h-8 text-xs mt-1"
-                />
+
+              {/* Address Line */}
+              <div className="flex items-start gap-2">
+                <div className="flex-1 space-y-1">
+                  <Label className="text-xs font-medium text-muted-foreground">
+                    Address / City Line
+                  </Label>
+                  <Input
+                    value={addressInfo}
+                    onChange={(e) => setAddressInfo(e.target.value)}
+                    placeholder="e.g. Gurugram / New Delhi, NCR, India"
+                    className="h-8 text-xs"
+                    disabled={!showAddress}
+                  />
+                </div>
+                <div className="pt-6">
+                  <button
+                    type="button"
+                    onClick={() => setShowAddress(!showAddress)}
+                    className={cn(
+                      "p-1.5 rounded-md border text-xs transition-colors",
+                      showAddress
+                        ? "text-primary border-primary/30 bg-primary/5"
+                        : "text-muted-foreground border-border bg-muted/40"
+                    )}
+                    title={showAddress ? "Visible on invoice (click to hide)" : "Hidden (click to show)"}
+                  >
+                    {showAddress ? <Eye className="size-4" /> : <EyeOff className="size-4" />}
+                  </button>
+                </div>
               </div>
-              <div className="sm:col-span-2">
-                <Label className="text-xs font-medium text-muted-foreground">Site Address / Location</Label>
-                <Input
-                  value={siteAddress}
-                  onChange={(e) => setSiteAddress(e.target.value)}
-                  placeholder="e.g. Unit 1204, Tower B, Palm Heights, Gurugram"
-                  className="h-8 text-xs mt-1"
-                />
+
+              {/* Invoice Title & Number Header */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1 border-t">
+                <div>
+                  <Label className="text-xs font-medium text-muted-foreground">
+                    Header Title
+                  </Label>
+                  <Input
+                    value={invoiceTitle}
+                    onChange={(e) => setInvoiceTitle(e.target.value)}
+                    placeholder="TAX INVOICE"
+                    className="h-8 text-xs font-bold uppercase mt-1"
+                  />
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs font-medium text-muted-foreground">
+                      Invoice #
+                    </Label>
+                    <button
+                      type="button"
+                      onClick={() => setInvoiceNumber(generateInvoiceNumber())}
+                      className="text-[10px] text-primary hover:underline flex items-center gap-0.5"
+                    >
+                      <RefreshCw className="size-2.5" /> New
+                    </button>
+                  </div>
+                  <Input
+                    value={invoiceNumber}
+                    onChange={(e) => setInvoiceNumber(e.target.value)}
+                    className="h-8 text-xs font-mono font-medium mt-1"
+                  />
+                </div>
+
+                <div>
+                  <Label className="text-xs font-medium text-muted-foreground">
+                    Invoice Date
+                  </Label>
+                  <Input
+                    type="date"
+                    value={date}
+                    onChange={(e) => setDate(e.target.value)}
+                    className="h-8 text-xs mt-1"
+                  />
+                </div>
               </div>
             </div>
           </div>
 
-          {/* 2. Calculation & Area Settings Card */}
+          {/* 2. Client & Project Scope Card */}
+          <div className="rounded-xl border border-border bg-card p-5 shadow-xs space-y-4">
+            <div className="flex items-center justify-between border-b pb-3">
+              <h3 className="text-sm font-semibold flex items-center gap-2">
+                <FileText className="size-4 text-primary" />
+                Billed To & Project Details
+              </h3>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground">Show Card:</span>
+                <Switch
+                  checked={showClientSection}
+                  onCheckedChange={setShowClientSection}
+                  className="scale-75"
+                />
+              </div>
+            </div>
+
+            {showClientSection && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                <div>
+                  <Label className="text-xs font-medium text-muted-foreground">Client / Company Name</Label>
+                  <Input
+                    value={clientName}
+                    onChange={(e) => setClientName(e.target.value)}
+                    placeholder="e.g. Rajesh Sharma"
+                    className="h-8 text-xs mt-1"
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs font-medium text-muted-foreground">Phone / WhatsApp</Label>
+                  <Input
+                    value={clientPhone}
+                    onChange={(e) => setClientPhone(e.target.value)}
+                    placeholder="+91 98765 43210"
+                    className="h-8 text-xs mt-1"
+                  />
+                </div>
+                <div className="sm:col-span-2">
+                  <Label className="text-xs font-medium text-muted-foreground">Project / Scope Title</Label>
+                  <Input
+                    value={projectName}
+                    onChange={(e) => setProjectName(e.target.value)}
+                    placeholder="e.g. Residential Interior Design"
+                    className="h-8 text-xs mt-1"
+                  />
+                </div>
+                <div className="sm:col-span-2">
+                  <Label className="text-xs font-medium text-muted-foreground">Site Address / Location</Label>
+                  <Input
+                    value={siteAddress}
+                    onChange={(e) => setSiteAddress(e.target.value)}
+                    placeholder="e.g. Unit 1204, Tower B, Palm Heights, Gurugram"
+                    className="h-8 text-xs mt-1"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* 3. Calculation & Area Settings Card */}
           <div className="rounded-xl border border-border bg-card p-5 shadow-xs space-y-4">
             <div className="flex items-center justify-between border-b pb-3">
               <h3 className="text-sm font-semibold flex items-center gap-2">
@@ -738,7 +1066,7 @@ export function InvoiceGeneratorTab() {
               </div>
             </div>
 
-            {/* Formula Explainer */}
+            {/* Formula Explainer & Watermark Toggle */}
             <div className="flex items-center justify-between p-2.5 rounded-lg bg-muted/40 text-xs text-muted-foreground border border-border/50">
               <div className="flex items-center gap-1.5 font-mono text-xs">
                 <span>₹{ratePerSqft}/{unit}</span>
@@ -747,18 +1075,28 @@ export function InvoiceGeneratorTab() {
                 <span>=</span>
                 <span className="font-semibold text-foreground">{formatINR(baseSubtotal)} Base</span>
               </div>
-              <div className="flex items-center gap-2">
-                <span className="text-[11px]">Watermark:</span>
-                <Switch
-                  checked={showWatermark}
-                  onCheckedChange={setShowWatermark}
-                  className="scale-75"
-                />
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px]">Show Rates:</span>
+                  <Switch
+                    checked={showDesignMetrics}
+                    onCheckedChange={setShowDesignMetrics}
+                    className="scale-75"
+                  />
+                </div>
+                <div className="flex items-center gap-1.5 border-l pl-3">
+                  <span className="text-[11px]">Watermark:</span>
+                  <Switch
+                    checked={showWatermark}
+                    onCheckedChange={setShowWatermark}
+                    className="scale-75"
+                  />
+                </div>
               </div>
             </div>
           </div>
 
-          {/* 3. Services Milestone Rows Management Card */}
+          {/* 4. Services Milestone Rows Management Card */}
           <div className="rounded-xl border border-border bg-card p-5 shadow-xs space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-3">
               <div>
@@ -767,7 +1105,7 @@ export function InvoiceGeneratorTab() {
                   Service Milestone Rows
                 </h3>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  Edit descriptions, customize percentage splits, or add new deliverables.
+                  Edit descriptions, customize percentage splits, or add/delete rows.
                 </p>
               </div>
 
@@ -931,51 +1269,73 @@ export function InvoiceGeneratorTab() {
             </div>
           </div>
 
-          {/* 4. Payment Method & Notes Card */}
+          {/* 5. Payment Method & Notes Card */}
           <div className="rounded-xl border border-border bg-card p-5 shadow-xs space-y-4">
             <h3 className="text-sm font-semibold border-b pb-3 flex items-center gap-2">
               <Sparkles className="size-4 text-primary" />
-              Payment Method & Notes
+              Payment Method & Terms
             </h3>
 
             <div className="space-y-3">
-              <div>
+              <div className="flex items-center justify-between">
                 <Label className="text-xs font-medium text-muted-foreground">Payment Method</Label>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] text-muted-foreground">Show:</span>
+                  <Switch
+                    checked={showPaymentMethod}
+                    onCheckedChange={setShowPaymentMethod}
+                    className="scale-75"
+                  />
+                </div>
+              </div>
+              {showPaymentMethod && (
                 <Input
                   value={paymentMethod}
                   onChange={(e) => setPaymentMethod(e.target.value)}
                   placeholder="Online/NEFT"
-                  className="h-8 text-xs mt-1"
+                  className="h-8 text-xs"
                 />
-              </div>
+              )}
 
-              <div>
+              <div className="flex items-center justify-between pt-1">
                 <Label className="text-xs font-medium text-muted-foreground">Terms & Conditions / Notes</Label>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] text-muted-foreground">Show:</span>
+                  <Switch
+                    checked={showNotes}
+                    onCheckedChange={setShowNotes}
+                    className="scale-75"
+                  />
+                </div>
+              </div>
+              {showNotes && (
                 <textarea
                   rows={2}
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
                   placeholder="1. All drawings and design revisions will be shared digitally."
-                  className="w-full rounded-md border border-border bg-background p-2 text-xs text-foreground focus:outline-hidden mt-1"
+                  className="w-full rounded-md border border-border bg-background p-2 text-xs text-foreground focus:outline-hidden"
                 />
-              </div>
+              )}
             </div>
           </div>
         </div>
 
         {/* ========================================================================= */}
-        {/* RIGHT COLUMN: LIVE INVOICE PREVIEW & PRINT SHEET                         */}
+        {/* RIGHT COLUMN: LIVE INVOICE PREVIEW & PRINT SHEET (TRUE A4 CENTERED)      */}
         {/* ========================================================================= */}
-        <div className="lg:col-span-6">
-          <div className="sticky top-6 space-y-3">
-            <div className="flex items-center justify-between print:hidden">
+        <div className="lg:col-span-6 flex flex-col items-center">
+          <div className="sticky top-6 space-y-3 w-full max-w-[210mm]">
+            <div className="flex items-center justify-between px-1 print:hidden">
               <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
                 <Printer className="size-3.5 text-primary" />
-                Live Printable Invoice Sheet
+                Live Printable A4 Invoice Sheet
               </span>
-              <span className="text-[11px] text-muted-foreground">
-                Exact reference layout
-              </span>
+              <div className="flex items-center gap-2">
+                <Badge variant="outline" className="text-[10px] font-mono text-zinc-500 bg-white">
+                  210 × 297 mm (A4)
+                </Badge>
+              </div>
             </div>
 
             {/* A4 Print Stylesheet Injection */}
@@ -1011,7 +1371,7 @@ export function InvoiceGeneratorTab() {
                   border: none !important;
                   box-shadow: none !important;
                   border-radius: 0 !important;
-                  margin: 0 !important;
+                  margin: 0 auto !important;
                   page-break-after: avoid !important;
                   page-break-inside: avoid !important;
                   overflow: hidden !important;
@@ -1024,11 +1384,11 @@ export function InvoiceGeneratorTab() {
             <div
               id="printable-invoice-sheet"
               className={cn(
-                "relative mx-auto w-full max-w-[210mm] min-h-[297mm] bg-white text-zinc-900 border border-zinc-300 rounded-lg shadow-lg p-8 sm:p-10 overflow-hidden print:border-none print:shadow-none print:p-0 print:m-0 print:w-[210mm] print:h-[297mm] print:bg-white print:text-black",
+                "relative mx-auto w-full max-w-[210mm] min-h-[297mm] bg-white text-zinc-900 border border-zinc-300 rounded-lg shadow-xl p-8 sm:p-10 overflow-hidden print:border-none print:shadow-none print:p-0 print:m-0 print:w-[210mm] print:h-[297mm] print:bg-white print:text-black",
                 "font-sans antialiased flex flex-col justify-between"
               )}
             >
-              {/* Optional Sofa Background Watermark (as shown in reference image) */}
+              {/* Optional Sofa Background Watermark */}
               {showWatermark && (
                 <div
                   className="pointer-events-none absolute inset-0 flex items-center justify-center opacity-[0.12] print:opacity-[0.12] z-0 overflow-hidden"
@@ -1043,63 +1403,123 @@ export function InvoiceGeneratorTab() {
 
               {/* Sheet Content Wrapper */}
               <div className="relative z-10 space-y-6">
-                {/* 1. Header & Architect Branding */}
-                <div className="flex flex-row items-start justify-between border-b-2 border-zinc-900 pb-5">
-                  <div>
-                    <h1 className="text-2xl font-black tracking-tight text-zinc-950 uppercase">
-                      Ar. Shagun Yadav
-                    </h1>
-                    <p className="text-xs font-semibold tracking-wide text-zinc-600 uppercase mt-0.5">
-                      Architect & ArchBIZ Consultant
-                    </p>
-                    <div className="text-[11px] text-zinc-500 mt-2 space-y-0.5 leading-relaxed">
-                      <p>+91 98765 43210 | info@arshagunyadav.com</p>
-                      <p>Gurugram / New Delhi, NCR, India</p>
-                    </div>
-                  </div>
-
-                  <div className="text-right">
-                    <div className="inline-block bg-zinc-950 text-white px-3 py-1 text-xs font-black tracking-widest uppercase">
-                      TAX INVOICE
-                    </div>
-                    <div className="text-xs font-mono font-bold text-zinc-900 mt-2">
-                      {invoiceNumber}
-                    </div>
-                    <div className="text-[11px] text-zinc-600 mt-0.5">
-                      Date: <span className="font-semibold text-zinc-800">{dayjs(date).format("DD MMM, YYYY")}</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* 2. Client & Project Details Bar */}
-                <div className="grid grid-cols-2 gap-4 rounded-md bg-zinc-50 p-3 text-xs border border-zinc-200">
-                  <div>
-                    <span className="text-[10px] font-bold tracking-wider text-zinc-400 uppercase">
-                      Billed To
-                    </span>
-                    <p className="font-bold text-zinc-900 text-sm mt-0.5">
-                      {clientName || "Client Name"}
-                    </p>
-                    {clientPhone && <p className="text-zinc-600 text-[11px] mt-0.5">{clientPhone}</p>}
-                    {clientEmail && <p className="text-zinc-600 text-[11px]">{clientEmail}</p>}
-                  </div>
-
-                  <div>
-                    <span className="text-[10px] font-bold tracking-wider text-zinc-400 uppercase">
-                      Project Site & Scope
-                    </span>
-                    <p className="font-bold text-zinc-900 text-sm mt-0.5">
-                      {projectName || "Interior Architecture"}
-                    </p>
-                    {siteAddress && (
-                      <p className="text-zinc-600 text-[11px] mt-0.5 line-clamp-2">
-                        {siteAddress}
-                      </p>
+                {/* 1. Header & Architect Branding (Center vs Split Layout) */}
+                {headerAlignment === "center" ? (
+                  /* ================================================================= */
+                  /* CENTER-ALIGNED HEADER (Requested default)                          */
+                  /* ================================================================= */
+                  <div className="flex flex-col items-center text-center border-b-2 border-zinc-900 pb-5 space-y-2">
+                    {showInvoiceTitle && (
+                      <div className="inline-block bg-zinc-950 text-white px-4 py-1 text-xs font-black tracking-widest uppercase rounded-xs">
+                        {invoiceTitle}
+                      </div>
                     )}
-                  </div>
-                </div>
 
-                {/* 3. The Core Milestone Table (Exact match to requested image) */}
+                    {showBranding && (
+                      <div className="space-y-0.5 pt-1">
+                        <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-zinc-950 uppercase">
+                          {companyName}
+                        </h1>
+
+                        {showTagline && tagline && (
+                          <p className="text-xs font-bold tracking-widest text-zinc-600 uppercase">
+                            {tagline}
+                          </p>
+                        )}
+                      </div>
+                    )}
+
+                    {(showContact || showAddress) && (
+                      <div className="text-[11px] text-zinc-500 space-y-0.5 leading-relaxed pt-0.5">
+                        {showContact && contactInfo && <p>{contactInfo}</p>}
+                        {showAddress && addressInfo && <p>{addressInfo}</p>}
+                      </div>
+                    )}
+
+                    {/* Invoice Number & Date centered bar */}
+                    <div className="flex items-center justify-center gap-4 text-xs pt-1 border-t border-zinc-200 w-full max-w-sm">
+                      <span className="font-mono font-bold text-zinc-900">
+                        {invoiceNumber}
+                      </span>
+                      <span className="text-zinc-300">•</span>
+                      <span className="text-zinc-600">
+                        Date: <strong className="text-zinc-900 font-semibold">{dayjs(date).format("DD MMM, YYYY")}</strong>
+                      </span>
+                    </div>
+                  </div>
+                ) : (
+                  /* ================================================================= */
+                  /* SPLIT (LEFT / RIGHT) HEADER                                       */
+                  /* ================================================================= */
+                  <div className="flex flex-row items-start justify-between border-b-2 border-zinc-900 pb-5">
+                    <div>
+                      {showBranding && (
+                        <>
+                          <h1 className="text-2xl font-black tracking-tight text-zinc-950 uppercase">
+                            {companyName}
+                          </h1>
+                          {showTagline && tagline && (
+                            <p className="text-xs font-semibold tracking-wide text-zinc-600 uppercase mt-0.5">
+                              {tagline}
+                            </p>
+                          )}
+                        </>
+                      )}
+                      {(showContact || showAddress) && (
+                        <div className="text-[11px] text-zinc-500 mt-2 space-y-0.5 leading-relaxed">
+                          {showContact && contactInfo && <p>{contactInfo}</p>}
+                          {showAddress && addressInfo && <p>{addressInfo}</p>}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="text-right">
+                      {showInvoiceTitle && (
+                        <div className="inline-block bg-zinc-950 text-white px-3 py-1 text-xs font-black tracking-widest uppercase">
+                          {invoiceTitle}
+                        </div>
+                      )}
+                      <div className="text-xs font-mono font-bold text-zinc-900 mt-2">
+                        {invoiceNumber}
+                      </div>
+                      <div className="text-[11px] text-zinc-600 mt-0.5">
+                        Date: <span className="font-semibold text-zinc-800">{dayjs(date).format("DD MMM, YYYY")}</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* 2. Client & Project Details Bar (Optional / Toggleable) */}
+                {showClientSection && (
+                  <div className="grid grid-cols-2 gap-4 rounded-md bg-zinc-50 p-3.5 text-xs border border-zinc-200">
+                    <div>
+                      <span className="text-[10px] font-bold tracking-wider text-zinc-400 uppercase">
+                        Billed To
+                      </span>
+                      <p className="font-bold text-zinc-900 text-sm mt-0.5">
+                        {clientName || "Client Name"}
+                      </p>
+                      {clientPhone && <p className="text-zinc-600 text-[11px] mt-0.5">{clientPhone}</p>}
+                      {clientEmail && <p className="text-zinc-600 text-[11px]">{clientEmail}</p>}
+                    </div>
+
+                    <div>
+                      <span className="text-[10px] font-bold tracking-wider text-zinc-400 uppercase">
+                        Project Site & Scope
+                      </span>
+                      <p className="font-bold text-zinc-900 text-sm mt-0.5">
+                        {projectName || "Interior Architecture"}
+                      </p>
+                      {siteAddress && (
+                        <p className="text-zinc-600 text-[11px] mt-0.5 line-clamp-2">
+                          {siteAddress}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* 3. The Core Milestone Table */}
                 <div className="overflow-hidden border border-zinc-950">
                   <table className="w-full border-collapse text-left">
                     <thead>
@@ -1152,34 +1572,38 @@ export function InvoiceGeneratorTab() {
                 <div className="grid grid-cols-12 gap-4 pt-2 items-start">
                   {/* Left Side: Design Charge, Area & Payment Details */}
                   <div className="col-span-7 space-y-3 text-xs">
-                    <div className="space-y-1 text-zinc-800 font-medium">
-                      <p className="text-sm">
-                        <span className="font-semibold text-zinc-900">Design Charge - </span>
-                        ₹{ratePerSqft}/{unit}
-                      </p>
-                      <p className="text-sm">
-                        <span className="font-semibold text-zinc-900">Designable Area - </span>
-                        {areaSqft} {unit}
-                      </p>
-                    </div>
+                    {showDesignMetrics && (
+                      <div className="space-y-1 text-zinc-800 font-medium">
+                        <p className="text-sm">
+                          <span className="font-semibold text-zinc-900">Design Charge - </span>
+                          ₹{ratePerSqft}/{unit}
+                        </p>
+                        <p className="text-sm">
+                          <span className="font-semibold text-zinc-900">Designable Area - </span>
+                          {areaSqft} {unit}
+                        </p>
+                      </div>
+                    )}
 
-                    <div className="pt-2">
-                      <p className="text-sm font-black text-zinc-950">
-                        Payment Method :
-                      </p>
-                      <p className="text-xs text-zinc-700 font-medium mt-0.5">
-                        {paymentMethod || "Online/NEFT"}
-                      </p>
-                    </div>
+                    {showPaymentMethod && (
+                      <div className="pt-1">
+                        <p className="text-sm font-black text-zinc-950">
+                          Payment Method :
+                        </p>
+                        <p className="text-xs text-zinc-700 font-medium mt-0.5">
+                          {paymentMethod || "Online/NEFT"}
+                        </p>
+                      </div>
+                    )}
 
-                    {notes && (
+                    {showNotes && notes && (
                       <div className="text-[10px] text-zinc-500 whitespace-pre-line leading-relaxed pt-2">
                         {notes}
                       </div>
                     )}
                   </div>
 
-                  {/* Right Side: Exact Summary Box matching Screenshot */}
+                  {/* Right Side: Exact Summary Box */}
                   <div className="col-span-5">
                     <div className="border border-zinc-950 rounded-none bg-white p-3 space-y-2 text-xs">
                       {/* GST Tag line */}

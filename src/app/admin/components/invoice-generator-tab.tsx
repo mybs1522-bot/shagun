@@ -92,6 +92,7 @@ export interface InvoiceData {
   showDesignMetrics: boolean;
   showPaymentMethod: boolean;
   showNotes: boolean;
+  showPercentageSplit?: boolean;
   headerAlignment: "center" | "split";
   // Client info
   clientName: string;
@@ -212,7 +213,7 @@ export function InvoiceGeneratorTab() {
   const [contactInfo, setContactInfo] = useState("+91 98765 43210 | info@arshagunyadav.com");
   const [addressInfo, setAddressInfo] = useState("Gurugram / New Delhi, NCR, India");
 
-  // Visibility toggles for all sections
+  // Visibility & Calculation toggles
   const [showBranding, setShowBranding] = useState(true);
   const [showTagline, setShowTagline] = useState(true);
   const [showContact, setShowContact] = useState(true);
@@ -222,6 +223,7 @@ export function InvoiceGeneratorTab() {
   const [showDesignMetrics, setShowDesignMetrics] = useState(true);
   const [showPaymentMethod, setShowPaymentMethod] = useState(true);
   const [showNotes, setShowNotes] = useState(true);
+  const [showPercentageSplit, setShowPercentageSplit] = useState(true);
   const [headerAlignment, setHeaderAlignment] = useState<"center" | "split">("center");
 
   // Client Details
@@ -250,6 +252,11 @@ export function InvoiceGeneratorTab() {
   const [rows, setRows] = useState<ServiceRow[]>(DEFAULT_SERVICES_PRESET);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
 
+  // Custom Quick Add Services State
+  const [customServices, setCustomServices] = useState<string[]>([]);
+  const [newServiceInput, setNewServiceInput] = useState("");
+  const [customServiceDialogOpen, setCustomServiceDialogOpen] = useState(false);
+
   // History & Leads Dialog state
   const [savedInvoices, setSavedInvoices] = useState<InvoiceData[]>([]);
   const [leadsList, setLeadsList] = useState<any[]>([]);
@@ -257,15 +264,45 @@ export function InvoiceGeneratorTab() {
   const [leadsDialogOpen, setLeadsDialogOpen] = useState(false);
   const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
 
-  // Load saved invoices from localStorage
+  // Load saved invoices & custom quick services from localStorage
   useEffect(() => {
     try {
-      const stored = localStorage.getItem("arch_saved_invoices");
-      if (stored) {
-        setSavedInvoices(JSON.parse(stored));
+      const storedInvoices = localStorage.getItem("arch_saved_invoices");
+      if (storedInvoices) {
+        setSavedInvoices(JSON.parse(storedInvoices));
+      }
+      const storedQuick = localStorage.getItem("arch_quick_services");
+      if (storedQuick) {
+        setCustomServices(JSON.parse(storedQuick));
       }
     } catch {}
   }, []);
+
+  // Custom Quick Add Service Handlers
+  const addCustomQuickService = () => {
+    const title = newServiceInput.trim();
+    if (!title) return;
+    if (customServices.includes(title) || POPULAR_SERVICE_NAMES.includes(title)) {
+      toast.info("Service already in list");
+      return;
+    }
+    const updated = [title, ...customServices];
+    setCustomServices(updated);
+    try {
+      localStorage.setItem("arch_quick_services", JSON.stringify(updated));
+      toast.success(`Added "${title}" to Quick Add!`);
+    } catch {}
+    setNewServiceInput("");
+  };
+
+  const removeCustomQuickService = (title: string) => {
+    const updated = customServices.filter((s) => s !== title);
+    setCustomServices(updated);
+    try {
+      localStorage.setItem("arch_quick_services", JSON.stringify(updated));
+      toast.info(`Removed "${title}" from Quick Add`);
+    } catch {}
+  };
 
   // Recalculate row amounts when ratePerSqft or areaSqft or taxRate changes
   const baseSubtotal = useMemo(() => {
@@ -481,6 +518,7 @@ export function InvoiceGeneratorTab() {
       showDesignMetrics,
       showPaymentMethod,
       showNotes,
+      showPercentageSplit,
       headerAlignment,
       clientName,
       clientPhone,
@@ -525,6 +563,7 @@ export function InvoiceGeneratorTab() {
     setShowDesignMetrics(inv.showDesignMetrics ?? true);
     setShowPaymentMethod(inv.showPaymentMethod ?? true);
     setShowNotes(inv.showNotes ?? true);
+    setShowPercentageSplit(inv.showPercentageSplit ?? true);
     setHeaderAlignment(inv.headerAlignment || "center");
     setClientName(inv.clientName || "");
     setClientPhone(inv.clientPhone || "");
@@ -615,9 +654,10 @@ export function InvoiceGeneratorTab() {
       `*Designable Area:* ${areaSqft} ${unit}`,
       `-----------------------------------------`,
       `*SERVICES & MILESTONES:*`,
-      ...rows.map(
-        (r) =>
-          `• ${r.service} (${r.percentage}%): ${formatINR(r.price)} + Tax: ${formatINR(r.tax)} = *${formatINR(r.total)}*`
+      ...rows.map((r) =>
+        showPercentageSplit
+          ? `• ${r.service} (${r.percentage}%): ${formatINR(r.price)} + Tax: ${formatINR(r.tax)} = *${formatINR(r.total)}*`
+          : `• ${r.service}: ${formatINR(r.price)} + Tax: ${formatINR(r.tax)} = *${formatINR(r.total)}*`
       ),
       `-----------------------------------------`,
       `*Sub-total:* ${formatINR(calculatedSubTotal)}`,
@@ -646,7 +686,7 @@ export function InvoiceGeneratorTab() {
             </Badge>
           </div>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Full control over every text element, alignment, milestone percentage splits, and A4 print layout.
+            Full control over text, alignment, milestone splits, custom services, and A4 print layout.
           </p>
         </div>
 
@@ -1106,22 +1146,34 @@ export function InvoiceGeneratorTab() {
                   Service Milestone Rows
                 </h3>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  Edit descriptions, customize percentage splits, or add/delete rows.
+                  Edit descriptions, customize prices, split percentages, or add/delete rows.
                 </p>
               </div>
 
-              <div className="flex items-center gap-2">
-                <Badge
-                  variant={totalPercentage === 100 ? "default" : "outline"}
-                  className={cn(
-                    "font-mono text-xs font-medium px-2 py-0.5",
-                    totalPercentage === 100
-                      ? "bg-emerald-600/10 text-emerald-700 border-emerald-300 dark:text-emerald-400"
-                      : "bg-amber-500/10 text-amber-700 border-amber-300 dark:text-amber-400"
-                  )}
-                >
-                  {totalPercentage}% Total Split
-                </Badge>
+              <div className="flex items-center gap-3">
+                {/* Toggle for Percentage Split */}
+                <div className="flex items-center gap-1.5 border border-border rounded-lg px-2 py-1 bg-muted/30">
+                  <span className="text-xs font-medium text-muted-foreground">% Split:</span>
+                  <Switch
+                    checked={showPercentageSplit}
+                    onCheckedChange={setShowPercentageSplit}
+                    className="scale-75"
+                  />
+                </div>
+
+                {showPercentageSplit && (
+                  <Badge
+                    variant={totalPercentage === 100 ? "default" : "outline"}
+                    className={cn(
+                      "font-mono text-xs font-medium px-2 py-0.5",
+                      totalPercentage === 100
+                        ? "bg-emerald-600/10 text-emerald-700 border-emerald-300 dark:text-emerald-400"
+                        : "bg-amber-500/10 text-amber-700 border-amber-300 dark:text-amber-400"
+                    )}
+                  >
+                    {totalPercentage}% Split
+                  </Badge>
+                )}
               </div>
             </div>
 
@@ -1175,30 +1227,32 @@ export function InvoiceGeneratorTab() {
 
                   {/* Calculations row */}
                   <div className="grid grid-cols-12 gap-2 text-xs items-center pl-7">
-                    <div className="col-span-3">
-                      <Label className="text-[10px] text-muted-foreground">Split %</Label>
-                      <div className="relative mt-0.5">
-                        <Input
-                          type="number"
-                          min="0"
-                          max="100"
-                          step="1"
-                          value={row.percentage}
-                          onChange={(e) =>
-                            updateRowPercentage(
-                              row.id,
-                              parseFloat(e.target.value) || 0
-                            )
-                          }
-                          className="h-7 text-xs font-mono font-semibold pr-5"
-                        />
-                        <span className="absolute right-1.5 top-1.5 text-[10px] text-muted-foreground">
-                          %
-                        </span>
+                    {showPercentageSplit && (
+                      <div className="col-span-3">
+                        <Label className="text-[10px] text-muted-foreground">Split %</Label>
+                        <div className="relative mt-0.5">
+                          <Input
+                            type="number"
+                            min="0"
+                            max="100"
+                            step="1"
+                            value={row.percentage}
+                            onChange={(e) =>
+                              updateRowPercentage(
+                                row.id,
+                                parseFloat(e.target.value) || 0
+                              )
+                            }
+                            className="h-7 text-xs font-mono font-semibold pr-5"
+                          />
+                          <span className="absolute right-1.5 top-1.5 text-[10px] text-muted-foreground">
+                            %
+                          </span>
+                        </div>
                       </div>
-                    </div>
+                    )}
 
-                    <div className="col-span-3">
+                    <div className={showPercentageSplit ? "col-span-3" : "col-span-4"}>
                       <Label className="text-[10px] text-muted-foreground">Price (₹)</Label>
                       <Input
                         type="number"
@@ -1211,7 +1265,7 @@ export function InvoiceGeneratorTab() {
                       />
                     </div>
 
-                    <div className="col-span-3">
+                    <div className={showPercentageSplit ? "col-span-3" : "col-span-4"}>
                       <Label className="text-[10px] text-muted-foreground">
                         Tax ({taxRate}%)
                       </Label>
@@ -1220,7 +1274,7 @@ export function InvoiceGeneratorTab() {
                       </div>
                     </div>
 
-                    <div className="col-span-3">
+                    <div className={showPercentageSplit ? "col-span-3" : "col-span-4"}>
                       <Label className="text-[10px] font-semibold text-foreground">
                         Total (₹)
                       </Label>
@@ -1233,7 +1287,7 @@ export function InvoiceGeneratorTab() {
               ))}
             </div>
 
-            {/* Add Service Button & Suggestions */}
+            {/* Add Service Button & Quick Add Suggestions */}
             <div className="pt-2 flex flex-wrap items-center justify-between gap-2 border-t">
               <Button
                 variant="outline"
@@ -1244,13 +1298,16 @@ export function InvoiceGeneratorTab() {
                 Add Service Row
               </Button>
 
-              {/* Quick suggestions dropdown */}
-              <div className="flex items-center gap-1">
+              {/* Quick suggestions dropdown & My Services manager */}
+              <div className="flex items-center gap-1.5">
                 <span className="text-[11px] text-muted-foreground">Quick Add:</span>
                 <select
-                  className="h-7 rounded-md border border-border bg-background px-2 text-[11px] text-muted-foreground focus:outline-hidden"
+                  className="h-7 rounded-md border border-border bg-background px-2 text-[11px] text-muted-foreground focus:outline-hidden max-w-[180px] sm:max-w-none"
                   onChange={(e) => {
-                    if (e.target.value) {
+                    if (e.target.value === "__MANAGE__") {
+                      setCustomServiceDialogOpen(true);
+                      e.target.value = "";
+                    } else if (e.target.value) {
                       addRow(e.target.value, 10);
                       e.target.value = "";
                     }
@@ -1258,14 +1315,38 @@ export function InvoiceGeneratorTab() {
                   defaultValue=""
                 >
                   <option value="" disabled>
-                    + Pick Common Service...
+                    + Pick Quick Service...
                   </option>
-                  {POPULAR_SERVICE_NAMES.map((name, i) => (
-                    <option key={i} value={name}>
-                      {name}
-                    </option>
-                  ))}
+                  {customServices.length > 0 && (
+                    <optgroup label="⭐ My Custom Services">
+                      {customServices.map((name, i) => (
+                        <option key={"custom_" + i} value={name}>
+                          ⭐ {name}
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
+                  <optgroup label="Standard Architectural Services">
+                    {POPULAR_SERVICE_NAMES.map((name, i) => (
+                      <option key={"std_" + i} value={name}>
+                        {name}
+                      </option>
+                    ))}
+                  </optgroup>
+                  <option value="__MANAGE__">
+                    ⚙️ + Manage / Add My Services...
+                  </option>
                 </select>
+
+                <Button
+                  variant="outline"
+                  onClick={() => setCustomServiceDialogOpen(true)}
+                  className="h-7 text-[11px] px-2 gap-1 text-primary border-primary/30 hover:bg-primary/5 shrink-0"
+                  title="Add custom services to Quick Add list"
+                >
+                  <Plus className="size-3" />
+                  My Services
+                </Button>
               </div>
             </div>
           </div>
@@ -1652,12 +1733,14 @@ export function InvoiceGeneratorTab() {
                   <table className="w-full border-collapse text-left">
                     <thead>
                       <tr className="bg-black text-white text-xs font-black tracking-wider uppercase">
-                        <th className="py-2.5 px-3 border-r border-zinc-800 font-extrabold w-[44%]">
+                        <th className={cn("py-2.5 px-3 border-r border-zinc-800 font-extrabold", showPercentageSplit ? "w-[44%]" : "w-[56%]")}>
                           SERVICE
                         </th>
-                        <th className="py-2.5 px-3 border-r border-zinc-800 text-center font-extrabold w-[12%]">
-                          %
-                        </th>
+                        {showPercentageSplit && (
+                          <th className="py-2.5 px-3 border-r border-zinc-800 text-center font-extrabold w-[12%]">
+                            %
+                          </th>
+                        )}
                         <th className="py-2.5 px-3 border-r border-zinc-800 text-right font-extrabold w-[14%]">
                           PRICE
                         </th>
@@ -1684,18 +1767,20 @@ export function InvoiceGeneratorTab() {
                           >
                             {row.service}
                           </td>
-                          <td
-                            contentEditable
-                            suppressContentEditableWarning
-                            onBlur={(e) => {
-                              const val = parseFloat(e.currentTarget.textContent || "0");
-                              if (!isNaN(val)) updateRowPercentage(row.id, val);
-                            }}
-                            className="py-3 px-3 border-r border-zinc-300 text-center font-mono font-semibold text-zinc-800 outline-none focus:bg-primary/10 hover:bg-primary/5 cursor-text"
-                            title="Click to edit percentage"
-                          >
-                            {row.percentage}
-                          </td>
+                          {showPercentageSplit && (
+                            <td
+                              contentEditable
+                              suppressContentEditableWarning
+                              onBlur={(e) => {
+                                const val = parseFloat(e.currentTarget.textContent || "0");
+                                if (!isNaN(val)) updateRowPercentage(row.id, val);
+                              }}
+                              className="py-3 px-3 border-r border-zinc-300 text-center font-mono font-semibold text-zinc-800 outline-none focus:bg-primary/10 hover:bg-primary/5 cursor-text"
+                              title="Click to edit percentage"
+                            >
+                              {row.percentage}
+                            </td>
+                          )}
                           <td className="py-3 px-3 border-r border-zinc-300 text-right font-mono font-medium text-zinc-800">
                             {formatINR(row.price)}
                           </td>
@@ -1859,6 +1944,93 @@ export function InvoiceGeneratorTab() {
               ))}
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* ========================================================================= */}
+      {/* DIALOG: MANAGE MY QUICK ADD SERVICES                                      */}
+      {/* ========================================================================= */}
+      <Dialog open={customServiceDialogOpen} onOpenChange={setCustomServiceDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <Sparkles className="size-4 text-primary" />
+              Manage My Quick Add Services
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Add your own custom service deliverables to quickly insert them into any invoice.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 pt-2">
+            <div className="flex items-center gap-2">
+              <Input
+                value={newServiceInput}
+                onChange={(e) => setNewServiceInput(e.target.value)}
+                placeholder="e.g. 3D Architectural Walkthrough Video"
+                className="h-8 text-xs flex-1"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    addCustomQuickService();
+                  }
+                }}
+              />
+              <Button
+                variant="default"
+                onClick={addCustomQuickService}
+                className="h-8 text-xs px-3"
+              >
+                Add Service
+              </Button>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-xs font-semibold text-muted-foreground">
+                Saved Custom Services ({customServices.length})
+              </Label>
+              {customServices.length === 0 ? (
+                <div className="text-center py-6 text-xs text-muted-foreground border rounded-lg bg-muted/20">
+                  No custom services added yet. Type above to add your own!
+                </div>
+              ) : (
+                <div className="divide-y border rounded-lg max-h-[240px] overflow-y-auto">
+                  {customServices.map((name, idx) => (
+                    <div
+                      key={idx}
+                      className="flex items-center justify-between p-2.5 text-xs hover:bg-muted/40 transition-colors"
+                    >
+                      <span className="font-medium text-foreground flex items-center gap-1.5">
+                        <Sparkles className="size-3 text-amber-500" />
+                        {name}
+                      </span>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          variant="ghost"
+                          onClick={() => {
+                            addRow(name, 10);
+                            setCustomServiceDialogOpen(false);
+                          }}
+                          className="h-6 text-[10px] text-primary hover:bg-primary/10 px-1.5"
+                        >
+                          + Use in Invoice
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => removeCustomQuickService(name)}
+                          className="size-6 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                          title="Remove custom service"
+                        >
+                          <Trash2 className="size-3" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
 

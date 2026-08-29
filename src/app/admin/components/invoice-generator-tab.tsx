@@ -1380,6 +1380,17 @@ export function InvoiceGeneratorTab() {
               }
             `}} />
 
+            {/* Interactive Edit Hint Banner */}
+            <div className="flex items-center justify-between bg-primary/10 border border-primary/20 rounded-lg p-2.5 text-xs text-primary font-medium print:hidden shadow-xs">
+              <span className="flex items-center gap-1.5">
+                <Sparkles className="size-4 shrink-0 text-primary" />
+                <span><strong>Direct Inline Editor:</strong> Click on any text directly on the sheet below to edit it live!</span>
+              </span>
+              <Badge variant="secondary" className="text-[10px] bg-primary/20 text-primary border-none">
+                Interactive
+              </Badge>
+            </div>
+
             {/* A4 Paper Container with White Background for Exact Visual & Print Rendering */}
             <div
               id="printable-invoice-sheet"
@@ -1410,20 +1421,38 @@ export function InvoiceGeneratorTab() {
                   /* ================================================================= */
                   <div className="flex flex-col items-center text-center border-b-2 border-zinc-900 pb-5 space-y-2">
                     {showInvoiceTitle && (
-                      <div className="inline-block bg-zinc-950 text-white px-4 py-1 text-xs font-black tracking-widest uppercase rounded-xs">
+                      <div
+                        contentEditable
+                        suppressContentEditableWarning
+                        onBlur={(e) => setInvoiceTitle(e.currentTarget.textContent || "TAX INVOICE")}
+                        className="inline-block bg-zinc-950 text-white px-4 py-1 text-xs font-black tracking-widest uppercase rounded-xs outline-none focus:ring-2 focus:ring-primary hover:bg-zinc-800 cursor-text transition-all"
+                        title="Click to edit title"
+                      >
                         {invoiceTitle}
                       </div>
                     )}
 
                     {showBranding && (
                       <div className="space-y-0.5 pt-1">
-                        <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-zinc-950 uppercase">
+                        <h1
+                          contentEditable
+                          suppressContentEditableWarning
+                          onBlur={(e) => setCompanyName(e.currentTarget.textContent || "")}
+                          className="text-2xl sm:text-3xl font-black tracking-tight text-zinc-950 uppercase outline-none focus:bg-primary/10 hover:outline-dashed hover:outline-1 hover:outline-primary/50 rounded px-1 cursor-text transition-all"
+                          title="Click to edit business name"
+                        >
                           {companyName}
                         </h1>
 
-                        {showTagline && tagline && (
-                          <p className="text-xs font-bold tracking-widest text-zinc-600 uppercase">
-                            {tagline}
+                        {showTagline && (
+                          <p
+                            contentEditable
+                            suppressContentEditableWarning
+                            onBlur={(e) => setTagline(e.currentTarget.textContent || "")}
+                            className="text-xs font-bold tracking-widest text-zinc-600 uppercase outline-none focus:bg-primary/10 hover:outline-dashed hover:outline-1 hover:outline-primary/50 rounded px-1 cursor-text transition-all"
+                            title="Click to edit tagline"
+                          >
+                            {tagline || "ARCHITECT & ARCHBIZ CONSULTANT"}
                           </p>
                         )}
                       </div>
@@ -1431,14 +1460,40 @@ export function InvoiceGeneratorTab() {
 
                     {(showContact || showAddress) && (
                       <div className="text-[11px] text-zinc-500 space-y-0.5 leading-relaxed pt-0.5">
-                        {showContact && contactInfo && <p>{contactInfo}</p>}
-                        {showAddress && addressInfo && <p>{addressInfo}</p>}
+                        {showContact && (
+                          <p
+                            contentEditable
+                            suppressContentEditableWarning
+                            onBlur={(e) => setContactInfo(e.currentTarget.textContent || "")}
+                            className="outline-none focus:bg-primary/10 hover:outline-dashed hover:outline-1 hover:outline-primary/50 rounded px-1 cursor-text transition-all"
+                            title="Click to edit contact line"
+                          >
+                            {contactInfo || "+91 98765 43210 | info@arshagunyadav.com"}
+                          </p>
+                        )}
+                        {showAddress && (
+                          <p
+                            contentEditable
+                            suppressContentEditableWarning
+                            onBlur={(e) => setAddressInfo(e.currentTarget.textContent || "")}
+                            className="outline-none focus:bg-primary/10 hover:outline-dashed hover:outline-1 hover:outline-primary/50 rounded px-1 cursor-text transition-all"
+                            title="Click to edit address line"
+                          >
+                            {addressInfo || "Gurugram / New Delhi, NCR, India"}
+                          </p>
+                        )}
                       </div>
                     )}
 
                     {/* Invoice Number & Date centered bar */}
                     <div className="flex items-center justify-center gap-4 text-xs pt-1 border-t border-zinc-200 w-full max-w-sm">
-                      <span className="font-mono font-bold text-zinc-900">
+                      <span
+                        contentEditable
+                        suppressContentEditableWarning
+                        onBlur={(e) => setInvoiceNumber(e.currentTarget.textContent || "")}
+                        className="font-mono font-bold text-zinc-900 outline-none focus:bg-primary/10 hover:outline-dashed hover:outline-1 hover:outline-primary/50 rounded px-1 cursor-text"
+                        title="Click to edit invoice number"
+                      >
                         {invoiceNumber}
                       </span>
                       <span className="text-zinc-300">•</span>
@@ -1455,31 +1510,71 @@ export function InvoiceGeneratorTab() {
                     <div>
                       {showBranding && (
                         <>
-                          <h1 className="text-2xl font-black tracking-tight text-zinc-950 uppercase">
+                          <h1
+                            contentEditable
+                            suppressContentEditableWarning
+                            onBlur={(e) => setCompanyName(e.currentTarget.textContent || "")}
+                            className="text-2xl font-black tracking-tight text-zinc-950 uppercase outline-none focus:bg-primary/10 hover:outline-dashed hover:outline-1 hover:outline-primary/50 rounded px-1 cursor-text transition-all"
+                            title="Click to edit business name"
+                          >
                             {companyName}
                           </h1>
-                          {showTagline && tagline && (
-                            <p className="text-xs font-semibold tracking-wide text-zinc-600 uppercase mt-0.5">
-                              {tagline}
+                          {showTagline && (
+                            <p
+                              contentEditable
+                              suppressContentEditableWarning
+                              onBlur={(e) => setTagline(e.currentTarget.textContent || "")}
+                              className="text-xs font-semibold tracking-wide text-zinc-600 uppercase mt-0.5 outline-none focus:bg-primary/10 hover:outline-dashed hover:outline-1 hover:outline-primary/50 rounded px-1 cursor-text transition-all"
+                              title="Click to edit tagline"
+                            >
+                              {tagline || "ARCHITECT & ARCHBIZ CONSULTANT"}
                             </p>
                           )}
                         </>
                       )}
                       {(showContact || showAddress) && (
                         <div className="text-[11px] text-zinc-500 mt-2 space-y-0.5 leading-relaxed">
-                          {showContact && contactInfo && <p>{contactInfo}</p>}
-                          {showAddress && addressInfo && <p>{addressInfo}</p>}
+                          {showContact && (
+                            <p
+                              contentEditable
+                              suppressContentEditableWarning
+                              onBlur={(e) => setContactInfo(e.currentTarget.textContent || "")}
+                              className="outline-none focus:bg-primary/10 hover:outline-dashed hover:outline-1 hover:outline-primary/50 rounded px-1 cursor-text"
+                            >
+                              {contactInfo}
+                            </p>
+                          )}
+                          {showAddress && (
+                            <p
+                              contentEditable
+                              suppressContentEditableWarning
+                              onBlur={(e) => setAddressInfo(e.currentTarget.textContent || "")}
+                              className="outline-none focus:bg-primary/10 hover:outline-dashed hover:outline-1 hover:outline-primary/50 rounded px-1 cursor-text"
+                            >
+                              {addressInfo}
+                            </p>
+                          )}
                         </div>
                       )}
                     </div>
 
                     <div className="text-right">
                       {showInvoiceTitle && (
-                        <div className="inline-block bg-zinc-950 text-white px-3 py-1 text-xs font-black tracking-widest uppercase">
+                        <div
+                          contentEditable
+                          suppressContentEditableWarning
+                          onBlur={(e) => setInvoiceTitle(e.currentTarget.textContent || "TAX INVOICE")}
+                          className="inline-block bg-zinc-950 text-white px-3 py-1 text-xs font-black tracking-widest uppercase outline-none focus:ring-2 focus:ring-primary cursor-text"
+                        >
                           {invoiceTitle}
                         </div>
                       )}
-                      <div className="text-xs font-mono font-bold text-zinc-900 mt-2">
+                      <div
+                        contentEditable
+                        suppressContentEditableWarning
+                        onBlur={(e) => setInvoiceNumber(e.currentTarget.textContent || "")}
+                        className="text-xs font-mono font-bold text-zinc-900 mt-2 outline-none focus:bg-primary/10 hover:outline-dashed hover:outline-1 hover:outline-primary/50 rounded px-1 cursor-text"
+                      >
                         {invoiceNumber}
                       </div>
                       <div className="text-[11px] text-zinc-600 mt-0.5">
@@ -1496,25 +1591,57 @@ export function InvoiceGeneratorTab() {
                       <span className="text-[10px] font-bold tracking-wider text-zinc-400 uppercase">
                         Billed To
                       </span>
-                      <p className="font-bold text-zinc-900 text-sm mt-0.5">
+                      <p
+                        contentEditable
+                        suppressContentEditableWarning
+                        onBlur={(e) => setClientName(e.currentTarget.textContent || "")}
+                        className="font-bold text-zinc-900 text-sm mt-0.5 outline-none focus:bg-primary/10 hover:outline-dashed hover:outline-1 hover:outline-primary/50 rounded px-1 cursor-text"
+                        title="Click to edit client name"
+                      >
                         {clientName || "Client Name"}
                       </p>
-                      {clientPhone && <p className="text-zinc-600 text-[11px] mt-0.5">{clientPhone}</p>}
-                      {clientEmail && <p className="text-zinc-600 text-[11px]">{clientEmail}</p>}
+                      <p
+                        contentEditable
+                        suppressContentEditableWarning
+                        onBlur={(e) => setClientPhone(e.currentTarget.textContent || "")}
+                        className="text-zinc-600 text-[11px] mt-0.5 outline-none focus:bg-primary/10 hover:outline-dashed hover:outline-1 hover:outline-primary/50 rounded px-1 cursor-text"
+                        title="Click to edit phone"
+                      >
+                        {clientPhone || "+91 Phone Number"}
+                      </p>
+                      <p
+                        contentEditable
+                        suppressContentEditableWarning
+                        onBlur={(e) => setClientEmail(e.currentTarget.textContent || "")}
+                        className="text-zinc-600 text-[11px] outline-none focus:bg-primary/10 hover:outline-dashed hover:outline-1 hover:outline-primary/50 rounded px-1 cursor-text"
+                        title="Click to edit email"
+                      >
+                        {clientEmail || "client@email.com"}
+                      </p>
                     </div>
 
                     <div>
                       <span className="text-[10px] font-bold tracking-wider text-zinc-400 uppercase">
                         Project Site & Scope
                       </span>
-                      <p className="font-bold text-zinc-900 text-sm mt-0.5">
+                      <p
+                        contentEditable
+                        suppressContentEditableWarning
+                        onBlur={(e) => setProjectName(e.currentTarget.textContent || "")}
+                        className="font-bold text-zinc-900 text-sm mt-0.5 outline-none focus:bg-primary/10 hover:outline-dashed hover:outline-1 hover:outline-primary/50 rounded px-1 cursor-text"
+                        title="Click to edit project title"
+                      >
                         {projectName || "Interior Architecture"}
                       </p>
-                      {siteAddress && (
-                        <p className="text-zinc-600 text-[11px] mt-0.5 line-clamp-2">
-                          {siteAddress}
-                        </p>
-                      )}
+                      <p
+                        contentEditable
+                        suppressContentEditableWarning
+                        onBlur={(e) => setSiteAddress(e.currentTarget.textContent || "")}
+                        className="text-zinc-600 text-[11px] mt-0.5 line-clamp-2 outline-none focus:bg-primary/10 hover:outline-dashed hover:outline-1 hover:outline-primary/50 rounded px-1 cursor-text"
+                        title="Click to edit site address"
+                      >
+                        {siteAddress || "Site Location Address"}
+                      </p>
                     </div>
                   </div>
                 )}
@@ -1547,10 +1674,25 @@ export function InvoiceGeneratorTab() {
                           key={row.id || index}
                           className="bg-transparent hover:bg-zinc-50/50 transition-colors"
                         >
-                          <td className="py-3 px-3 border-r border-zinc-300 font-medium text-zinc-900 leading-snug">
+                          <td
+                            contentEditable
+                            suppressContentEditableWarning
+                            onBlur={(e) => updateRowService(row.id, e.currentTarget.textContent || "")}
+                            className="py-3 px-3 border-r border-zinc-300 font-medium text-zinc-900 leading-snug outline-none focus:bg-primary/10 hover:bg-primary/5 cursor-text"
+                            title="Click to edit service name"
+                          >
                             {row.service}
                           </td>
-                          <td className="py-3 px-3 border-r border-zinc-300 text-center font-mono font-semibold text-zinc-800">
+                          <td
+                            contentEditable
+                            suppressContentEditableWarning
+                            onBlur={(e) => {
+                              const val = parseFloat(e.currentTarget.textContent || "0");
+                              if (!isNaN(val)) updateRowPercentage(row.id, val);
+                            }}
+                            className="py-3 px-3 border-r border-zinc-300 text-center font-mono font-semibold text-zinc-800 outline-none focus:bg-primary/10 hover:bg-primary/5 cursor-text"
+                            title="Click to edit percentage"
+                          >
                             {row.percentage}
                           </td>
                           <td className="py-3 px-3 border-r border-zinc-300 text-right font-mono font-medium text-zinc-800">
@@ -1590,15 +1732,27 @@ export function InvoiceGeneratorTab() {
                         <p className="text-sm font-black text-zinc-950">
                           Payment Method :
                         </p>
-                        <p className="text-xs text-zinc-700 font-medium mt-0.5">
+                        <p
+                          contentEditable
+                          suppressContentEditableWarning
+                          onBlur={(e) => setPaymentMethod(e.currentTarget.textContent || "")}
+                          className="text-xs text-zinc-700 font-medium mt-0.5 outline-none focus:bg-primary/10 hover:outline-dashed hover:outline-1 hover:outline-primary/50 rounded px-1 cursor-text"
+                          title="Click to edit payment method"
+                        >
                           {paymentMethod || "Online/NEFT"}
                         </p>
                       </div>
                     )}
 
-                    {showNotes && notes && (
-                      <div className="text-[10px] text-zinc-500 whitespace-pre-line leading-relaxed pt-2">
-                        {notes}
+                    {showNotes && (
+                      <div
+                        contentEditable
+                        suppressContentEditableWarning
+                        onBlur={(e) => setNotes(e.currentTarget.textContent || "")}
+                        className="text-[10px] text-zinc-500 whitespace-pre-line leading-relaxed pt-2 outline-none focus:bg-primary/10 hover:outline-dashed hover:outline-1 hover:outline-primary/50 rounded px-1 cursor-text"
+                        title="Click to edit terms / notes"
+                      >
+                        {notes || "1. All drawings and design revisions will be shared digitally."}
                       </div>
                     )}
                   </div>

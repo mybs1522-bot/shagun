@@ -1,6 +1,6 @@
 "use client";
 
-import { Loader2, Lock, LogOut, Calendar as CalendarIcon } from "lucide-react";
+import { Loader2, Lock, LogOut, Calendar as CalendarIcon, Receipt } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
@@ -11,6 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 import { BooksTab } from "./components/books-tab";
 import { CalendarTab } from "./components/calendar-tab";
+import { InvoiceGeneratorTab } from "./components/invoice-generator-tab";
 import { LeadsTab } from "./components/leads-tab";
 import { ProjectsTab } from "./components/projects-tab";
 import { ReviewsTab } from "./components/reviews-tab";
@@ -158,6 +159,10 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
           <TabsTrigger value="services" className="data-[state=active]:bg-muted">
             Services
           </TabsTrigger>
+          <TabsTrigger value="invoices" className="data-[state=active]:bg-muted font-semibold flex items-center gap-1.5">
+            <Receipt className="size-3.5 text-primary" />
+            Invoice Generator
+          </TabsTrigger>
           <TabsTrigger value="books" className="data-[state=active]:bg-muted">
             E-Books
           </TabsTrigger>
@@ -189,6 +194,10 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
 
       <TabsContent value="calendar" className="border rounded-xl p-6 bg-card shadow-sm mt-0">
         <CalendarTab />
+      </TabsContent>
+
+      <TabsContent value="invoices" className="border rounded-xl p-6 bg-card shadow-sm mt-0">
+        <InvoiceGeneratorTab />
       </TabsContent>
 
       <TabsContent value="services" className="border rounded-xl p-6 bg-card shadow-sm">

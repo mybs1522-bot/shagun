@@ -711,6 +711,17 @@ export function InvoiceGeneratorTab() {
     window.print();
   };
 
+  // Helper to convert base64 string to Uint8Array reliably
+  const base64ToUint8Array = (base64: string): Uint8Array => {
+    const binaryString = atob(base64);
+    const len = binaryString.length;
+    const bytes = new Uint8Array(len);
+    for (let i = 0; i < len; i++) {
+      bytes[i] = binaryString.charCodeAt(i);
+    }
+    return bytes;
+  };
+
   // Direct 3-Page A4 PDF Download function (Merged Offer Letter Page 1 & 2 + Invoice Sheet Page 3)
   const handleDownloadPDF = async () => {
     const element = document.getElementById("printable-invoice-sheet");
@@ -729,6 +740,9 @@ export function InvoiceGeneratorTab() {
       const html2canvas = (await import("html2canvas")).default;
       const { jsPDF } = await import("jspdf");
       const { PDFDocument } = await import("pdf-lib");
+      const { OFFER_LETTER_TEMPLATE_BASE64 } = await import(
+        "@/lib/offer-letter-template-base64"
+      );
 
       const safeClient = (clientName || "Client").trim().replace(/[^a-zA-Z0-9_-]/g, "_");
       const filename = `${invoiceNumber || "Invoice"}_${safeClient}.pdf`;
@@ -757,38 +771,32 @@ export function InvoiceGeneratorTab() {
       const invoiceArrayBuffer = invoicePdf.output("arraybuffer");
       const invoicePdfDoc = await PDFDocument.load(invoiceArrayBuffer);
 
-      let combinedPdfBytes: Uint8Array;
+      // 3. Load Embedded Offer Letter Template (Page 1: Offer Letter, Page 2: Scope of Work & Notes)
+      const templateBytes = base64ToUint8Array(OFFER_LETTER_TEMPLATE_BASE64);
+      const basePdf = await PDFDocument.load(templateBytes);
 
-      try {
-        // Fetch Offer Letter template (try /api/admin/template-pdf then /pdf/offer_letter_template.pdf)
-        let templateRes = await fetch("/api/admin/template-pdf");
-        if (!templateRes.ok) {
-          templateRes = await fetch("/pdf/offer_letter_template.pdf");
-        }
-        if (!templateRes.ok) throw new Error("Template fetch failed");
+      // 4. Merge into a unified 3-page PDF document
+      const combinedPdf = await PDFDocument.create();
 
-        const templateArrayBuffer = await templateRes.arrayBuffer();
-        const basePdf = await PDFDocument.load(templateArrayBuffer);
+      // Copy Page 1 & Page 2 from offer letter template
+      const pageCount = basePdf.getPageCount();
+      const pagesToCopy = Array.from(
+        { length: Math.min(pageCount, 2) },
+        (_, i) => i
+      );
+      const copiedTemplatePages = await combinedPdf.copyPages(
+        basePdf,
+        pagesToCopy
+      );
+      copiedTemplatePages.forEach((p) => combinedPdf.addPage(p));
 
-        const combinedPdf = await PDFDocument.create();
+      // Append Page 3 (Generated Tax Invoice Sheet)
+      const [page3] = await combinedPdf.copyPages(invoicePdfDoc, [0]);
+      combinedPdf.addPage(page3);
 
-        // Copy Page 1 & Page 2 from offer letter template
-        const pageCount = basePdf.getPageCount();
-        const pagesToCopy = Array.from({ length: Math.min(pageCount, 2) }, (_, i) => i);
-        const copiedTemplatePages = await combinedPdf.copyPages(basePdf, pagesToCopy);
-        copiedTemplatePages.forEach((p) => combinedPdf.addPage(p));
+      const combinedPdfBytes = await combinedPdf.save();
 
-        // Append Page 3 (Generated Tax Invoice Sheet)
-        const [page3] = await combinedPdf.copyPages(invoicePdfDoc, [0]);
-        combinedPdf.addPage(page3);
-
-        combinedPdfBytes = await combinedPdf.save();
-      } catch (templateError) {
-        console.warn("Template merge notice, outputting single page invoice:", templateError);
-        combinedPdfBytes = await invoicePdfDoc.save();
-      }
-
-      // 3. Trigger direct download
+      // 5. Trigger direct download
       const blob = new Blob([combinedPdfBytes], { type: "application/pdf" });
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");

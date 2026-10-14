@@ -2,11 +2,8 @@ import {
   AlertCircle,
   ArrowLeft,
   CheckCircle2,
-  Clock,
   HelpCircle,
   Mail,
-  MessageCircle,
-  Phone,
   ShieldAlert,
   ShieldCheck,
 } from "lucide-react";
@@ -223,7 +220,7 @@ export default function RefundPolicyPage() {
               </p>
               <ol className="list-decimal list-inside space-y-1.5 pl-2">
                 <li>
-                  Contact us via email at <strong className="text-foreground">hello@archbysha.com</strong> or via WhatsApp.
+                  Contact us via email at <strong className="text-foreground">hello@archbysha.com</strong>.
                 </li>
                 <li>
                   Provide your <strong className="text-foreground">Full Name</strong>, <strong className="text-foreground">Phone Number</strong>, and <strong className="text-foreground">Transaction/Order ID</strong> (e.g. Razorpay payment ID starting with <code className="font-mono text-[11px] bg-muted px-1 py-0.5 rounded">pay_...</code>).
@@ -247,7 +244,7 @@ export default function RefundPolicyPage() {
               Our support team is available Monday through Saturday (10:00 AM – 7:00 PM IST) to answer any queries before you make a payment.
             </p>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+            <div className="pt-2 max-w-md">
               <a
                 href="mailto:hello@archbysha.com"
                 className="flex items-center gap-3 rounded-xl border border-grid bg-card p-4 hover:border-foreground/30 transition-all group"
@@ -259,23 +256,6 @@ export default function RefundPolicyPage() {
                   <div className="text-xs text-muted-foreground">Email Support</div>
                   <div className="font-mono text-xs sm:text-sm font-semibold text-foreground group-hover:underline">
                     hello@archbysha.com
-                  </div>
-                </div>
-              </a>
-
-              <a
-                href="https://wa.me/919815216644?text=Hi%2C%20I%20have%20questions%20regarding%20Ar%20Shagun%20services%20before%20booking"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-3 rounded-xl border border-grid bg-card p-4 hover:border-foreground/30 transition-all group"
-              >
-                <div className="size-10 rounded-lg bg-emerald-500/10 flex items-center justify-center text-emerald-500 shrink-0">
-                  <MessageCircle className="size-5" />
-                </div>
-                <div>
-                  <div className="text-xs text-muted-foreground">WhatsApp Support</div>
-                  <div className="text-xs sm:text-sm font-semibold text-foreground group-hover:underline">
-                    Chat with Architectural Team
                   </div>
                 </div>
               </a>

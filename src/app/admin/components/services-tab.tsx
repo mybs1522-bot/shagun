@@ -1,10 +1,11 @@
 "use client";
 
-import { Loader2, Pencil, Plus, Trash2, ArrowUp, ArrowDown } from "lucide-react";
+import { Loader2, Pencil, Plus, Trash2, ArrowUp, ArrowDown, CheckCircle2 } from "lucide-react";
 import Image from "next/image";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
+import { PaidUsersDialog, type CompletedPaymentLead } from "./paid-users-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -69,6 +70,11 @@ export function ServicesTab() {
   const [loading, setLoading] = useState(true);
   const [reordering, setReordering] = useState(false);
 
+  // Completed payments state
+  const [completedLeads, setCompletedLeads] = useState<CompletedPaymentLead[]>([]);
+  const [selectedServiceForPaidUsers, setSelectedServiceForPaidUsers] = useState<Service | null>(null);
+  const [paidUsersDialogOpen, setPaidUsersDialogOpen] = useState(false);
+
   // Dialog state
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingService, setEditingService] = useState<Service | null>(null);
@@ -85,6 +91,9 @@ export function ServicesTab() {
         const json = await res.json();
         if (json.services) {
           setServices(json.services as Service[]);
+          if (json.completedLeads) {
+            setCompletedLeads(json.completedLeads as CompletedPaymentLead[]);
+          }
           setLoading(false);
           return;
         }
@@ -103,8 +112,67 @@ export function ServicesTab() {
     } else {
       setServices(data as Service[]);
     }
+
+    // Also fetch completed leads via client Supabase fallback
+    try {
+      const { data: leads } = await supabase
+        .from("service_leads")
+        .select(`
+          id,
+          name,
+          phone,
+          service_id,
+          payment_status,
+          paid_at,
+          created_at,
+          appointment_date,
+          appointment_time,
+          razorpay_order_id,
+          money_received,
+          lead_status
+        `)
+        .eq("payment_status", "completed")
+        .order("created_at", { ascending: false });
+
+      if (leads) {
+        const real = (leads as any[]).filter((l) => {
+          const name = String(l.name || "").toLowerCase().trim();
+          const phone = String(l.phone || "").replace(/\D/g, "");
+          const id = String(l.id || "");
+          return (
+            !name.includes("blocked") &&
+            phone !== "0000000000" &&
+            !phone.endsWith("0000000000") &&
+            !id.startsWith("block_") &&
+            !id.startsWith("mem_block_")
+          );
+        });
+        setCompletedLeads(real);
+      }
+    } catch (leadErr) {
+      console.error("Error fetching leads fallback:", leadErr);
+    }
+
     setLoading(false);
   }, []);
+
+  // Map of service_id to count of completed payments
+  const paymentCountsByService = useMemo(() => {
+    const map: Record<string, number> = {};
+    completedLeads.forEach((lead) => {
+      if (lead.service_id) {
+        map[lead.service_id] = (map[lead.service_id] || 0) + 1;
+      }
+    });
+    return map;
+  }, [completedLeads]);
+
+  const totalCompletedPayments = completedLeads.length;
+
+  const handleOpenPaidUsers = (service: Service) => {
+    setSelectedServiceForPaidUsers(service);
+    setPaidUsersDialogOpen(true);
+  };
 
   useEffect(() => {
     fetchServices();
@@ -212,17 +280,26 @@ export function ServicesTab() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl font-semibold tracking-tight">Services</h2>
           <p className="text-xs text-muted-foreground mt-0.5">
             Use ▲ and ▼ arrows in the Sequence column to reorder services displayed on the homepage
           </p>
         </div>
-        <Button onClick={handleAdd} size="default">
-          <Plus className="size-4" />
-          Add Service
-        </Button>
+        <div className="flex items-center gap-2">
+          <Badge
+            variant="outline"
+            className="h-9 px-3 text-xs font-semibold gap-1.5 border-emerald-500/40 bg-emerald-500/10 text-emerald-400"
+          >
+            <CheckCircle2 className="size-3.5" />
+            <span>{totalCompletedPayments} Completed Payments</span>
+          </Badge>
+          <Button onClick={handleAdd} size="default">
+            <Plus className="size-4" />
+            Add Service
+          </Button>
+        </div>
       </div>
 
       <Separator />
@@ -248,12 +325,15 @@ export function ServicesTab() {
               <TableHead>Title</TableHead>
               <TableHead>Category</TableHead>
               <TableHead className="text-right">Amount</TableHead>
+              <TableHead className="text-center min-w-[130px]">Completed Payments</TableHead>
               <TableHead className="text-center">Status</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {services.map((service, index) => (
+            {services.map((service, index) => {
+              const paidCount = paymentCountsByService[service.id] || 0;
+              return (
               <TableRow key={service.id}>
                 {/* SEQUENCE REORDERING COLUMN */}
                 <TableCell>
@@ -314,6 +394,36 @@ export function ServicesTab() {
                 <TableCell className="text-right font-mono text-sm">
                   {formatPrice(service.amount, service.currency)}
                 </TableCell>
+
+                {/* COMPLETED PAYMENTS COLUMN */}
+                <TableCell className="text-center">
+                  <button
+                    type="button"
+                    onClick={() => handleOpenPaidUsers(service)}
+                    className={cn(
+                      "inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold transition-all cursor-pointer border",
+                      paidCount > 0
+                        ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 hover:border-emerald-500/60 shadow-xs"
+                        : "border-border bg-muted/40 text-muted-foreground hover:bg-muted hover:text-foreground"
+                    )}
+                    title={
+                      paidCount > 0
+                        ? `Click to view ${paidCount} user(s) who completed payments`
+                        : "Click to view completed payments"
+                    }
+                  >
+                    <CheckCircle2
+                      className={cn(
+                        "size-3.5 shrink-0",
+                        paidCount > 0 ? "text-emerald-400" : "text-muted-foreground/60"
+                      )}
+                    />
+                    <span>
+                      {paidCount} {paidCount === 1 ? "Paid" : "Paid"}
+                    </span>
+                  </button>
+                </TableCell>
+
                 <TableCell className="text-center">
                   <Badge
                     variant={service.is_active ? "default" : "secondary"}
@@ -349,7 +459,7 @@ export function ServicesTab() {
                   </div>
                 </TableCell>
               </TableRow>
-            ))}
+            )})}
           </TableBody>
         </Table>
       )}
@@ -359,6 +469,13 @@ export function ServicesTab() {
         onClose={handleDialogClose}
         onSaved={handleSaved}
         service={editingService}
+      />
+
+      <PaidUsersDialog
+        open={paidUsersDialogOpen}
+        onOpenChange={setPaidUsersDialogOpen}
+        service={selectedServiceForPaidUsers}
+        leads={completedLeads}
       />
 
       <Dialog

@@ -1,7 +1,11 @@
 export const NAV_LINKS = [
   {
     title: "Books",
-    href: "#books",
+    href: "/#books",
+  },
+  {
+    title: "Refund Policy",
+    href: "/refund-policy",
   },
   {
     title: "Contact",

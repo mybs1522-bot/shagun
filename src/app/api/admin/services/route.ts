@@ -14,7 +14,51 @@ export async function GET() {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ services: data || [] });
+    // Fetch all completed payments from service_leads
+    const { data: leads, error: leadsError } = await supabaseAdmin
+      .from("service_leads")
+      .select(`
+        id,
+        name,
+        phone,
+        service_id,
+        payment_status,
+        paid_at,
+        created_at,
+        appointment_date,
+        appointment_time,
+        razorpay_order_id,
+        money_received,
+        lead_status
+      `)
+      .eq("payment_status", "completed")
+      .order("created_at", { ascending: false });
+
+    if (leadsError) {
+      console.error("Error fetching leads via admin client:", leadsError);
+    }
+
+    // Filter out admin-blocked slots
+    const realCompletedLeads = (leads || []).filter((lead: any) => {
+      if (!lead) return false;
+      const name = String(lead.name || "").toLowerCase().trim();
+      const phoneDigits = String(lead.phone || "").replace(/\D/g, "");
+      const idStr = String(lead.id || "");
+
+      const isBlocked =
+        name.includes("blocked") ||
+        phoneDigits === "0000000000" ||
+        phoneDigits.endsWith("0000000000") ||
+        idStr.startsWith("block_") ||
+        idStr.startsWith("mem_block_");
+
+      return !isBlocked;
+    });
+
+    return NextResponse.json({
+      services: data || [],
+      completedLeads: realCompletedLeads,
+    });
   } catch (err: any) {
     console.error("Admin GET services error:", err);
     return NextResponse.json({ error: err.message || "Server error" }, { status: 500 });

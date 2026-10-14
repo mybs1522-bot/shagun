@@ -60,7 +60,7 @@ export default function RefundPolicyPage() {
               Official Studio Policy
             </Badge>
             <span className="text-xs font-mono text-muted-foreground">
-              Last Updated: October 2026
+              Last Updated: July 2026
             </span>
           </div>
 

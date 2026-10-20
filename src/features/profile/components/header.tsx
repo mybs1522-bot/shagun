@@ -30,21 +30,22 @@ export function Header() {
           </div>
         </div>
 
-        <div className="flex flex-1 flex-col">
+        <div className="flex flex-1 flex-col min-w-0">
           <div className="flex grow"></div>
 
           <div className="border-t border-grid">
-            <h1 className="flex items-center pl-4 font-heading text-3xl font-medium">
-              {USER.displayName}
-              &nbsp;
+            <h1 className="flex items-center gap-1.5 pl-3 sm:pl-4 pr-2 font-heading text-xl sm:text-2xl md:text-3xl font-medium leading-tight">
+              <span className="truncate">{USER.displayName}</span>
               <SimpleTooltip
                 content={`Official website of ${USER.displayName}`}
               >
-                <VerifiedIcon className="size-[0.6em] translate-y-px text-info" />
+                <span className="inline-flex shrink-0 items-center">
+                  <VerifiedIcon className="size-5 sm:size-6 text-[#155dfc] dark:text-[#3b82f6] shrink-0 translate-y-px" />
+                </span>
               </SimpleTooltip>
             </h1>
 
-            <div className="h-12 border-t border-grid py-1 pl-4 sm:h-auto">
+            <div className="h-12 border-t border-grid py-1 pl-3 sm:pl-4 sm:h-auto">
               <FlipSentences sentences={[USER.bio, ...USER.flipSentences]} />
             </div>
           </div>

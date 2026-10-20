@@ -5,6 +5,7 @@ import React, { useState } from "react";
 import { cn } from "@/lib/cn";
 
 import { Review } from "../../types/reviews";
+import { VerifiedIcon } from "../verified-icon";
 
 function getInitials(name: string) {
   return name
@@ -80,6 +81,9 @@ export function ReviewCard({ review }: { review: Review }) {
             <span className="truncate text-sm font-medium text-foreground">
               {review.author.name}
             </span>
+            {review.author.verified && (
+              <VerifiedIcon className="size-3.5 text-[#155dfc] dark:text-[#3b82f6] shrink-0" />
+            )}
           </div>
         </div>
       </div>

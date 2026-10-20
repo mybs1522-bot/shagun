@@ -8,9 +8,7 @@ import {
   CalendarDays,
   Clock,
   ChevronRight,
-  ShieldCheck,
 } from "lucide-react";
-import Link from "next/link";
 import React, { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
 
@@ -78,7 +76,6 @@ export function ServiceDialog({
   const categoryLower = service?.category.toLowerCase() || "";
   // All services require calendar date & time selection for appointment booking
   const isConsultation = true;
-  const isPaymentRequired = Boolean(service && service.amount > 0);
 
   const [step, setStep] = useState<1 | 2>(1);
   const [selectedDate, setSelectedDate] = useState<dayjs.Dayjs | null>(null);
@@ -601,28 +598,6 @@ export function ServiceDialog({
               )}
             </div>
 
-            {/* Refund Policy Disclosure */}
-            {isPaymentRequired && (
-              <div className="rounded-xl border border-amber-500/25 bg-amber-500/5 dark:bg-amber-950/20 p-3 space-y-1.5 text-xs text-muted-foreground">
-                <div className="flex items-center gap-1.5 font-semibold text-foreground text-xs">
-                  <ShieldCheck className="size-3.5 text-amber-500" />
-                  <span>Refund &amp; Cancellation Policy</span>
-                </div>
-                <p className="text-[11px] leading-relaxed">
-                  Refunds are eligible prior to the start of your consultation call or service. Once the call has been conducted or design work has been delivered, orders are strictly non-refundable.
-                </p>
-                <div className="flex items-center justify-between text-[11px] pt-1 border-t border-border/50">
-                  <span className="text-muted-foreground/90 font-medium">Please ensure clarity before payment.</span>
-                  <Link
-                    href="/refund-policy"
-                    target="_blank"
-                    className="underline text-foreground hover:text-primary font-medium"
-                  >
-                    Read Policy
-                  </Link>
-                </div>
-              </div>
-            )}
 
             <Button type="submit" className="w-full" disabled={submitting}>
               {submitting ? (

@@ -1,7 +1,6 @@
 "use client";
 
 import { Download, Loader2 } from "lucide-react";
-import Link from "next/link";
 import React, { useState, useEffect } from "react";
 import { toast } from "sonner";
 
@@ -201,15 +200,6 @@ export function BookDialog({
             />
           </div>
 
-          {book && book.price > 0 && (
-            <p className="text-[11px] text-muted-foreground text-center">
-              Digital e-books are delivered immediately. Read our{" "}
-              <Link href="/refund-policy" target="_blank" className="underline hover:text-foreground">
-                Refund Policy
-              </Link>
-              .
-            </p>
-          )}
 
           <Button type="submit" className="w-full" disabled={submitting}>
             {submitting ? (

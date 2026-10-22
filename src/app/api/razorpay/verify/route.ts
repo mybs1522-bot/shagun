@@ -92,6 +92,7 @@ export async function POST(req: NextRequest) {
           appointment_date,
           appointment_time,
           service_id,
+          notes_json,
           services (
             title
           )
@@ -121,17 +122,43 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "Failed to update lead status" }, { status: 500 });
       }
 
-      // 4. Send email notification
+      // 4. Send email notification & client confirmation
+      let clientEmail = null;
+      let floorPlanUrl = null;
+      let floorPlanName = null;
+      if (lead.notes_json) {
+        try {
+          const notes = typeof lead.notes_json === "string" ? JSON.parse(lead.notes_json) : lead.notes_json;
+          for (const n of notes) {
+            if (n.text && n.text.includes("Client Email:")) {
+              const m = n.text.match(/Client Email:\s*([^\s]+)/i);
+              if (m) clientEmail = m[1];
+            }
+            if (n.text && n.text.includes("Floor Plan")) {
+              const m = n.text.match(/(https?:\/\/[^\s\)\n\r]+)/i);
+              if (m) floorPlanUrl = m[1];
+              const nameMatch = n.text.match(/Floor Plan:\s*([^\n\r]+)/i);
+              if (nameMatch) floorPlanName = nameMatch[1];
+            }
+          }
+        } catch (e) {
+          console.error("Error parsing lead notes_json in verify:", e);
+        }
+      }
+
       fetch(`${req.nextUrl.origin}/api/notify-lead`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: nameWithPayment,
+          email: clientEmail,
           phone: lead.phone,
           serviceName: serviceName,
           paymentStatus: "completed",
           date: lead.appointment_date ? new Date(lead.appointment_date).toLocaleDateString() : null,
           time: lead.appointment_time,
+          floorPlanUrl,
+          floorPlanName,
         }),
       }).catch(console.error);
 

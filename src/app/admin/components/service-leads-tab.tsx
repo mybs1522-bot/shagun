@@ -25,6 +25,7 @@ import {
   Receipt,
   AlertCircle,
   X,
+  Paperclip,
 } from "lucide-react";
 import React, { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -228,6 +229,19 @@ export function ServiceLeadsTab() {
     } catch {
       return [];
     }
+  };
+
+  // Helper to extract uploaded floor plan URL from notes
+  const getFloorPlanFromNotes = (notesList: LeadNote[]): { url: string; name?: string } | null => {
+    for (const n of notesList) {
+      if (n.text && (n.text.includes("Floor Plan") || n.text.includes("floor-plans"))) {
+        const match = n.text.match(/(https?:\/\/[^\s\)\n\r]+)/i);
+        if (match) {
+          return { url: match[1] };
+        }
+      }
+    }
+    return null;
   };
 
   // Helper to get status
@@ -905,6 +919,24 @@ export function ServiceLeadsTab() {
                         <div className="text-[10px] text-muted-foreground mt-1">
                           {dayjs(lead.created_at).format("MMM D, YYYY [at] h:mm A")}
                         </div>
+                        {(() => {
+                          const fp = getFloorPlanFromNotes(notesList);
+                          if (!fp) return null;
+                          return (
+                            <div className="mt-1.5">
+                              <a
+                                href={fp.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 px-2 py-0.5 text-[10px] font-bold hover:bg-blue-500/20 transition-colors"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <Paperclip className="size-2.5" />
+                                View Floor Plan ↗
+                              </a>
+                            </div>
+                          );
+                        })()}
                       </TableCell>
 
                       {/* Appointment Slot */}
@@ -1198,7 +1230,21 @@ export function ServiceLeadsTab() {
                                           )}
                                         </div>
                                         <p className="text-foreground whitespace-pre-wrap leading-relaxed">
-                                          {note.text}
+                                          {note.text.split(/(https?:\/\/[^\s\)\n\r]+)/g).map((part, i) =>
+                                            part.match(/^https?:\/\//) ? (
+                                              <a
+                                                key={i}
+                                                href={part}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="text-primary underline font-semibold break-all hover:text-primary/80"
+                                              >
+                                                {part}
+                                              </a>
+                                            ) : (
+                                              part
+                                            )
+                                          )}
                                         </p>
                                       </div>
                                     ))

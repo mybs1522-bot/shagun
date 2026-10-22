@@ -59,7 +59,7 @@ function parseKolkataDateTime(dateStr: string, timeStr: string): Date {
 
 export async function POST(req: NextRequest) {
   try {
-    const { leadId, name, phone, serviceName, date, time } = await req.json();
+    const { leadId, name, phone, serviceName, date, time, floorPlanUrl } = await req.json();
 
     if (!date || !time) {
       return NextResponse.json(
@@ -96,9 +96,12 @@ export async function POST(req: NextRequest) {
         `👤 Client: ${name}`,
         `📞 Phone: ${phone}`,
         `🛎️ Service: ${serviceName}`,
+        floorPlanUrl ? `📐 Floor Plan: ${floorPlanUrl}` : "",
         ``,
         `Booked via Shagun Yadav Website`,
-      ].join("\n"),
+      ]
+        .filter(Boolean)
+        .join("\n"),
       start: {
         dateTime: startTime,
         timeZone: "Asia/Kolkata",

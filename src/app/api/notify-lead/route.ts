@@ -147,16 +147,16 @@ export async function POST(req: NextRequest) {
               <p style="margin: 0; font-size: 13px; color: #15803d; line-height: 1.5;">
                 Ar Shagun and the design team will review your requirements ${
                   floorPlanName ? "and uploaded floor plan " : ""
-                }ahead of the session. We will connect with you at your chosen appointment slot.
+                }ahead of the session. We will connect with you at your scheduled time.
               </p>
             </div>
 
-            <p style="font-size: 13px; color: #6b7280; line-height: 1.5; margin-bottom: 0;">
-              Need to make changes or have questions? Simply reply directly to this email or message us on WhatsApp.
+            <p style="font-size: 13px; color: #4b5563; line-height: 1.6; margin-bottom: 0;">
+              We will connect at your scheduled time. In case of any issue, please mail us at <a href="mailto:hello@archbysha.com" style="color: #10b981; font-weight: 600; text-decoration: none;">hello@archbysha.com</a>.
             </p>
           </div>
           <div style="background: #f9fafb; padding: 18px; text-align: center; color: #9ca3af; font-size: 12px; border-top: 1px solid #e5e7eb;">
-            Ar Shagun Architecture &amp; Design Studio • Contact: contact@archbyshagun.in
+            Ar Shagun Architecture &amp; Design Studio • Support: <a href="mailto:hello@archbysha.com" style="color: #6b7280; text-decoration: underline;">hello@archbysha.com</a>
           </div>
         </div>
       `;
@@ -165,7 +165,7 @@ export async function POST(req: NextRequest) {
         to: email,
         subject: `🎉 Booking Confirmed: ${serviceName} — Ar Shagun Studio`,
         html: clientHtml,
-        replyTo: "contact@archbyshagun.in",
+        replyTo: "hello@archbysha.com",
       });
     }
 

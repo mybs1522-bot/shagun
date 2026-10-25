@@ -364,23 +364,6 @@ export function ServiceDialog({
           }),
         }).catch(console.error);
 
-        // Add to Google Calendar
-        if (selectedDate && selectedTime) {
-          fetch("/api/calendar", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              leadId: leadId,
-              name: finalName,
-              phone: fullPhone,
-              serviceName: service.title,
-              date: selectedDate.format("MMM D, YYYY"),
-              time: selectedTime,
-              floorPlanUrl: floorPlanFile?.url || null,
-            }),
-          }).catch(console.error);
-        }
-
         const res = await fetch("/api/razorpay", {
           method: "POST",
           headers: { "Content-Type": "application/json" },

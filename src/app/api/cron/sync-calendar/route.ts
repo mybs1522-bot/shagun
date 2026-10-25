@@ -1,61 +1,9 @@
-import { google } from "googleapis";
 import { NextRequest, NextResponse } from "next/server";
 export const dynamic = "force-dynamic";
 import { createClient } from "@supabase/supabase-js";
 import Razorpay from "razorpay";
-
-function getCalendarClient() {
-  let rawKey = (process.env.GOOGLE_CALENDAR_PRIVATE_KEY || "").trim();
-  if (rawKey.startsWith('"') && rawKey.endsWith('"')) {
-    rawKey = rawKey.substring(1, rawKey.length - 1);
-  }
-  const privateKey = rawKey.includes("\\n")
-    ? rawKey.split("\\n").join("\n")
-    : rawKey;
-
-  let clientEmail = (process.env.GOOGLE_CALENDAR_CLIENT_EMAIL || "").trim();
-  if (clientEmail.startsWith('"') && clientEmail.endsWith('"')) {
-    clientEmail = clientEmail.substring(1, clientEmail.length - 1);
-  }
-
-  const auth = new google.auth.JWT({
-    email: clientEmail,
-    key: privateKey,
-    scopes: ["https://www.googleapis.com/auth/calendar"],
-  });
-
-  return google.calendar({ version: "v3", auth });
-}
-
-function parseKolkataDateTime(dateStr: string, timeStr: string): Date {
-  const timeRegex = /(\d+):(\d+)\s*(AM|PM)/i;
-  const match = timeStr.match(timeRegex);
-  if (!match) {
-    throw new Error(`Invalid time format: ${timeStr}`);
-  }
-  
-  let hours = parseInt(match[1], 10);
-  const minutes = parseInt(match[2], 10);
-  const ampm = match[3].toUpperCase();
-  
-  if (ampm === "PM" && hours < 12) hours += 12;
-  if (ampm === "AM" && hours === 12) hours = 0;
-  
-  const hh = String(hours).padStart(2, "0");
-  const mm = String(minutes).padStart(2, "0");
-  
-  const tempDate = new Date(dateStr);
-  if (isNaN(tempDate.getTime())) {
-    throw new Error(`Invalid date format: ${dateStr}`);
-  }
-  
-  const yyyy = tempDate.getFullYear();
-  const month = String(tempDate.getMonth() + 1).padStart(2, "0");
-  const dd = String(tempDate.getDate()).padStart(2, "0");
-  
-  const kolkataISO = `${yyyy}-${month}-${dd}T${hh}:${mm}:00+05:30`;
-  return new Date(kolkataISO);
-}
+import { getCalendarClient, parseKolkataDateTime } from "@/lib/google-calendar";
+import { isAdminBlockedLead } from "@/lib/blocked-slots";
 
 export async function GET(req: NextRequest) {
   try {
@@ -102,60 +50,66 @@ export async function GET(req: NextRequest) {
       .not("razorpay_order_id", "is", null)
       .gt("created_at", past24h);
 
-    const razorpay = new Razorpay({
-      key_id: process.env.RAZORPAY_KEY_ID!,
-      key_secret: process.env.RAZORPAY_KEY_SECRET!,
-    });
-
-    // Fetch captured payments from past 24 hours
-    const paymentsData = await razorpay.payments.all({
-      count: 100,
-    });
-    const capturedPayments = (paymentsData.items || []).filter(
-      (p: any) => p.status === "captured"
-    );
-
     let reconciledCount = 0;
 
-    if (capturedPayments.length > 0) {
-      // Reconcile service leads
-      if (pendingLeads && pendingLeads.length > 0) {
-        for (const lead of pendingLeads) {
-          const matchingPayment = capturedPayments.find(
-            (p: any) => p.order_id === lead.razorpay_order_id
-          );
-          if (matchingPayment) {
-            const nameWithPayment = `${lead.name} (TXN: ${matchingPayment.id})`;
-            await supabase
-              .from("service_leads")
-              .update({
-                name: nameWithPayment,
-                payment_status: "completed",
-                paid_at: new Date(matchingPayment.created_at * 1000).toISOString(),
-              })
-              .eq("id", lead.id);
-            reconciledCount++;
-          }
-        }
-      }
+    if (process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET) {
+      try {
+        const razorpay = new Razorpay({
+          key_id: process.env.RAZORPAY_KEY_ID,
+          key_secret: process.env.RAZORPAY_KEY_SECRET,
+        });
 
-      // Reconcile book leads
-      if (pendingBookLeads && pendingBookLeads.length > 0) {
-        for (const lead of pendingBookLeads) {
-          const matchingPayment = capturedPayments.find(
-            (p: any) => p.order_id === lead.razorpay_order_id
-          );
-          if (matchingPayment) {
-            await supabase
-              .from("book_leads")
-              .update({
-                payment_status: "completed",
-                paid_at: new Date(matchingPayment.created_at * 1000).toISOString(),
-              })
-              .eq("id", lead.id);
-            reconciledCount++;
+        // Fetch captured payments from past 24 hours
+        const paymentsData = await razorpay.payments.all({
+          count: 100,
+        });
+        const capturedPayments = (paymentsData.items || []).filter(
+          (p: any) => p.status === "captured"
+        );
+
+        if (capturedPayments.length > 0) {
+          // Reconcile service leads
+          if (pendingLeads && pendingLeads.length > 0) {
+            for (const lead of pendingLeads) {
+              const matchingPayment = capturedPayments.find(
+                (p: any) => p.order_id === lead.razorpay_order_id
+              );
+              if (matchingPayment) {
+                const nameWithPayment = `${lead.name} (TXN: ${matchingPayment.id})`;
+                await supabase
+                  .from("service_leads")
+                  .update({
+                    name: nameWithPayment,
+                    payment_status: "completed",
+                    paid_at: new Date(matchingPayment.created_at * 1000).toISOString(),
+                  })
+                  .eq("id", lead.id);
+                reconciledCount++;
+              }
+            }
+          }
+
+          // Reconcile book leads
+          if (pendingBookLeads && pendingBookLeads.length > 0) {
+            for (const lead of pendingBookLeads) {
+              const matchingPayment = capturedPayments.find(
+                (p: any) => p.order_id === lead.razorpay_order_id
+              );
+              if (matchingPayment) {
+                await supabase
+                  .from("book_leads")
+                  .update({
+                    payment_status: "completed",
+                    paid_at: new Date(matchingPayment.created_at * 1000).toISOString(),
+                  })
+                  .eq("id", lead.id);
+                reconciledCount++;
+              }
+            }
           }
         }
+      } catch (rpErr) {
+        console.error("Razorpay reconciliation error:", rpErr);
       }
     }
 
@@ -187,6 +141,15 @@ export async function GET(req: NextRequest) {
 
     if (leads && leads.length > 0) {
       for (const lead of leads) {
+        // Do NOT sync admin-blocked calls/slots to Google Calendar!
+        if (isAdminBlockedLead(lead)) {
+          await supabase
+            .from("service_leads")
+            .update({ google_calendar_event_id: "admin_blocked" })
+            .eq("id", lead.id);
+          continue;
+        }
+
         const serviceName = (lead.services as any)?.title || "Consultation Call";
         const eventSummary = `📞 ${serviceName} — ${lead.name}`;
 
@@ -228,9 +191,119 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    // ==========================================
+    // CLEAN UP ANY PREVIOUSLY-SYNCED ADMIN BLOCKED CALLS FROM GOOGLE CALENDAR
+    // ==========================================
+    let cleanedBlockedCount = 0;
+    try {
+      const { data: oldBlockedLeads } = await supabase
+        .from("service_leads")
+        .select("id, name, phone, google_calendar_event_id")
+        .not("google_calendar_event_id", "is", null)
+        .neq("google_calendar_event_id", "admin_blocked");
+
+      if (oldBlockedLeads && oldBlockedLeads.length > 0) {
+        for (const bl of oldBlockedLeads) {
+          if (isAdminBlockedLead(bl) && bl.google_calendar_event_id) {
+            try {
+              await calendar.events.delete({
+                calendarId,
+                eventId: bl.google_calendar_event_id,
+              });
+              cleanedBlockedCount++;
+            } catch (delErr: any) {
+              if (delErr?.code !== 404 && delErr?.code !== 410) {
+                console.error(`Failed to delete event ${bl.google_calendar_event_id} from Google Calendar:`, delErr);
+              }
+            }
+            await supabase
+              .from("service_leads")
+              .update({ google_calendar_event_id: "admin_blocked" })
+              .eq("id", bl.id);
+          }
+        }
+      }
+
+      // Also search Google Calendar directly for any leftover "Admin Blocked Slot" events and remove them
+      try {
+        const calList = await calendar.events.list({
+          calendarId,
+          q: "Admin Blocked Slot",
+          maxResults: 100,
+        });
+        const items = calList.data.items || [];
+        for (const ev of items) {
+          if (ev.id && (ev.summary?.includes("Admin Blocked") || ev.description?.includes("Admin Blocked Slot"))) {
+            try {
+              await calendar.events.delete({
+                calendarId,
+                eventId: ev.id,
+              });
+              cleanedBlockedCount++;
+            } catch (err: any) {
+              if (err?.code !== 404 && err?.code !== 410) {
+                console.error(`Failed to delete leftover event ${ev.id}:`, err);
+              }
+            }
+          }
+        }
+      } catch (listErr) {
+        console.error("Failed to query calendar for Admin Blocked Slot events:", listErr);
+      }
+    } catch (cleanupErr) {
+      console.error("Error during admin blocked cleanup:", cleanupErr);
+    }
+
+    // ==========================================
+    // CLEAN UP UNPAID / PENDING LEADS FROM GOOGLE CALENDAR
+    // ==========================================
+    let cleanedPendingCount = 0;
+    try {
+      const { data: pendingLeadsWithCal } = await supabase
+        .from("service_leads")
+        .select(`
+          id,
+          name,
+          payment_status,
+          google_calendar_event_id,
+          services (
+            amount
+          )
+        `)
+        .eq("payment_status", "pending")
+        .not("google_calendar_event_id", "is", null)
+        .neq("google_calendar_event_id", "admin_blocked");
+
+      if (pendingLeadsWithCal && pendingLeadsWithCal.length > 0) {
+        for (const pl of pendingLeadsWithCal) {
+          const amount = (pl.services as any)?.amount ?? 0;
+          // Only clean up if it's a paid service that wasn't paid
+          if (amount > 0 && pl.google_calendar_event_id) {
+            try {
+              await calendar.events.delete({
+                calendarId,
+                eventId: pl.google_calendar_event_id,
+              });
+              cleanedPendingCount++;
+            } catch (delErr: any) {
+              if (delErr?.code !== 404 && delErr?.code !== 410) {
+                console.error(`Failed to delete pending event ${pl.google_calendar_event_id}:`, delErr);
+              }
+            }
+            await supabase
+              .from("service_leads")
+              .update({ google_calendar_event_id: null })
+              .eq("id", pl.id);
+          }
+        }
+      }
+    } catch (pendingCleanErr) {
+      console.error("Error cleaning up pending leads from Google Calendar:", pendingCleanErr);
+    }
+
     return NextResponse.json({
       success: true,
-      message: `Reconciled ${reconciledCount} payments. Synced ${syncedCount} new events to Google Calendar.`,
+      message: `Reconciled ${reconciledCount} payments. Synced ${syncedCount} new events to Google Calendar. Cleaned ${cleanedBlockedCount} admin-blocked events and ${cleanedPendingCount} unpaid/pending events from Google Calendar.`,
     });
   } catch (error: any) {
     console.error("Cron sync error:", error);

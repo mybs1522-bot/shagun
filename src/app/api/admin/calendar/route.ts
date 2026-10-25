@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase";
+import { getCalendarClient } from "@/lib/google-calendar";
+import { isAdminBlockedLead } from "@/lib/blocked-slots";
 
 export const AVAILABLE_TIMES = [
   "10:00 AM",
@@ -49,11 +51,7 @@ export async function GET() {
     // Filter out unpaid/pending leads! Only keep completed payments OR admin-blocked slots!
     const validLeads = rawLeads.filter((l: any) => {
       const isPaid = l.payment_status === "completed";
-      const isAdminBlocked =
-        l.phone === "0000000000" ||
-        l.name === "Admin Blocked Slot" ||
-        l.id?.startsWith("block_") ||
-        l.id?.startsWith("mem_block_");
+      const isAdminBlocked = isAdminBlockedLead(l);
 
       return isPaid || isAdminBlocked;
     });
@@ -115,7 +113,8 @@ export async function POST(req: NextRequest) {
         .maybeSingle();
 
       if (!existing) {
-        // Insert with valid UUID!
+        // Insert with valid UUID and mark google_calendar_event_id as 'admin_blocked'
+        // so it will NEVER be synced to Google Calendar
         const blockId = crypto.randomUUID();
         const { error: insertErr } = await supabaseAdmin.from("service_leads").insert({
           id: blockId,
@@ -125,6 +124,7 @@ export async function POST(req: NextRequest) {
           appointment_time: time,
           payment_status: "completed",
           lead_status: "Closed",
+          google_calendar_event_id: "admin_blocked",
           created_at: new Date().toISOString(),
         });
 
@@ -143,6 +143,34 @@ export async function POST(req: NextRequest) {
 
       const key = `${date}_${time}`;
       memoryBlockedSlots.delete(key);
+
+      // Clean up google calendar event if an old event ID existed
+      try {
+        const { data: toDel } = await supabaseAdmin
+          .from("service_leads")
+          .select("google_calendar_event_id")
+          .eq("appointment_date", date)
+          .eq("appointment_time", time)
+          .eq("phone", "0000000000");
+
+        if (toDel && toDel.length > 0) {
+          for (const item of toDel) {
+            if (item.google_calendar_event_id && item.google_calendar_event_id !== "admin_blocked") {
+              try {
+                const calendar = getCalendarClient();
+                const calendarId = (process.env.GOOGLE_CALENDAR_ID || "").trim().replace(/^"|"$/g, "");
+                if (calendarId) {
+                  await calendar.events.delete({ calendarId, eventId: item.google_calendar_event_id });
+                }
+              } catch (calDelErr) {
+                console.error("Failed to delete event from Google Calendar on unblock:", calDelErr);
+              }
+            }
+          }
+        }
+      } catch (err) {
+        console.error("Error checking calendar event on unblock:", err);
+      }
 
       const { error: delErr } = await supabaseAdmin
         .from("service_leads")
@@ -184,6 +212,7 @@ export async function POST(req: NextRequest) {
             appointment_time: t,
             payment_status: "completed",
             lead_status: "Closed",
+            google_calendar_event_id: "admin_blocked",
             created_at: new Date().toISOString(),
           });
 
@@ -204,6 +233,33 @@ export async function POST(req: NextRequest) {
       AVAILABLE_TIMES.forEach((t) => {
         memoryBlockedSlots.delete(`${date}_${t}`);
       });
+
+      // Clean up google calendar events if any old events existed
+      try {
+        const { data: toDelDay } = await supabaseAdmin
+          .from("service_leads")
+          .select("google_calendar_event_id")
+          .eq("appointment_date", date)
+          .eq("phone", "0000000000");
+
+        if (toDelDay && toDelDay.length > 0) {
+          for (const item of toDelDay) {
+            if (item.google_calendar_event_id && item.google_calendar_event_id !== "admin_blocked") {
+              try {
+                const calendar = getCalendarClient();
+                const calendarId = (process.env.GOOGLE_CALENDAR_ID || "").trim().replace(/^"|"$/g, "");
+                if (calendarId) {
+                  await calendar.events.delete({ calendarId, eventId: item.google_calendar_event_id });
+                }
+              } catch (calDelErr) {
+                console.error("Failed to delete event from Google Calendar on unblock day:", calDelErr);
+              }
+            }
+          }
+        }
+      } catch (err) {
+        console.error("Error checking calendar events on unblock day:", err);
+      }
 
       const { error: delErr } = await supabaseAdmin
         .from("service_leads")

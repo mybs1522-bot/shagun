@@ -2,7 +2,17 @@
 
 // Thank You Page Component for Bookings and Purchases
 
-import { CheckCircle2, Calendar, Clock, ArrowLeft, Download, BookOpen, Loader2 } from "lucide-react";
+import {
+  CheckCircle2,
+  Calendar,
+  Clock,
+  ArrowLeft,
+  Download,
+  BookOpen,
+  Loader2,
+  Mail,
+  Send,
+} from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
 import { useSearchParams } from "next/navigation";
@@ -10,6 +20,9 @@ import { Suspense, useState, useEffect } from "react";
 import dayjs from "dayjs";
 import { supabase } from "@/lib/supabase";
 import { Book } from "@/features/books/types";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 
 function ThankYouContent() {
   const searchParams = useSearchParams();
@@ -17,9 +30,16 @@ function ThankYouContent() {
   const bookId = searchParams.get("bookId");
   const dateParam = searchParams.get("date");
   const timeParam = searchParams.get("time");
+  const emailParam = searchParams.get("email");
+  const leadIdParam = searchParams.get("leadId");
 
   const [book, setBook] = useState<Book | null>(null);
   const [loadingBook, setLoadingBook] = useState(false);
+
+  // Email capture state for users who skipped email prompt
+  const [confirmedEmail, setConfirmedEmail] = useState<string>(emailParam || "");
+  const [emailInput, setEmailInput] = useState<string>("");
+  const [savingEmail, setSavingEmail] = useState<boolean>(false);
 
   useEffect(() => {
     if (type === "book" && bookId) {
@@ -42,11 +62,51 @@ function ThankYouContent() {
     }
   }, [type, bookId]);
 
+  const handleSaveEmail = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!emailInput.trim()) return;
+
+    if (!emailInput.includes("@") || !emailInput.includes(".")) {
+      toast.error("Please enter a valid email address");
+      return;
+    }
+
+    if (!leadIdParam) {
+      setConfirmedEmail(emailInput.trim());
+      toast.success("Email saved!");
+      return;
+    }
+
+    setSavingEmail(true);
+    try {
+      const res = await fetch("/api/lead/save-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          leadId: leadIdParam,
+          email: emailInput.trim(),
+        }),
+      });
+
+      if (!res.ok) {
+        throw new Error("Failed to save email");
+      }
+
+      setConfirmedEmail(emailInput.trim());
+      toast.success("Confirmation sent to your email!");
+    } catch (err: any) {
+      console.error(err);
+      toast.error("Could not send email, but your appointment is confirmed.");
+    } finally {
+      setSavingEmail(false);
+    }
+  };
+
   const formattedDate = dateParam ? dayjs(dateParam).format("MMMM D, YYYY") : null;
   const isBook = type === "book";
 
   return (
-    <div className="flex min-h-[80vh] flex-col items-center justify-center px-4 text-center">
+    <div className="flex min-h-[80vh] flex-col items-center justify-center px-4 text-center py-10">
       <div className="animate-in fade-in zoom-in-95 duration-500 flex flex-col items-center max-w-md w-full bg-card border border-border/50 rounded-3xl p-8 shadow-xl shadow-emerald-500/5">
         
         {/* Animated Check Icon */}
@@ -62,7 +122,7 @@ function ThankYouContent() {
         <p className="text-muted-foreground text-sm sm:text-base mb-6">
           {isBook 
             ? "Your payment was successful. You can download your E-Book below." 
-            : "You will receive a call at your selected time."}
+            : "Your appointment is confirmed! You will receive a call at your selected time."}
         </p>
 
         {/* E-Book download details card */}
@@ -118,7 +178,7 @@ function ThankYouContent() {
 
         {/* Appointment details summary card */}
         {!isBook && formattedDate && timeParam && (
-          <div className="w-full bg-muted/40 border border-border/30 rounded-2xl p-4 mb-8 flex flex-col gap-3 text-left">
+          <div className="w-full bg-muted/40 border border-border/30 rounded-2xl p-4 mb-6 flex flex-col gap-3 text-left">
             <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
               Booking details
             </p>
@@ -130,6 +190,50 @@ function ThankYouContent() {
               <Clock className="size-4 text-emerald-500 shrink-0" />
               <span>{timeParam}</span>
             </div>
+            {confirmedEmail && (
+              <div className="flex items-center gap-3 text-xs text-emerald-600 dark:text-emerald-400 font-medium pt-1 border-t border-border/30">
+                <Mail className="size-3.5 shrink-0" />
+                <span className="truncate">Confirmation sent to: <strong>{confirmedEmail}</strong></span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Optional Email Collection Box for users who skipped during modal */}
+        {!isBook && !confirmedEmail && (
+          <div className="w-full bg-emerald-500/5 border border-emerald-500/20 rounded-2xl p-4 mb-6 text-left">
+            <div className="flex items-center gap-2 mb-1.5 text-xs font-semibold text-foreground">
+              <Mail className="size-3.5 text-emerald-500" />
+              Want a calendar invite &amp; confirmation email?
+            </div>
+            <p className="text-[11px] text-muted-foreground mb-3">
+              Enter your email to receive meeting link and reminders.
+            </p>
+            <form onSubmit={handleSaveEmail} className="flex gap-2">
+              <Input
+                type="email"
+                placeholder="Enter your email address"
+                value={emailInput}
+                onChange={(e) => setEmailInput(e.target.value)}
+                className="h-8 text-xs bg-background"
+                required
+              />
+              <Button
+                type="submit"
+                size="default"
+                disabled={savingEmail}
+                className="h-8 px-3 text-xs bg-emerald-600 hover:bg-emerald-500 text-white shrink-0 cursor-pointer"
+              >
+                {savingEmail ? (
+                  <Loader2 className="size-3 animate-spin" />
+                ) : (
+                  <>
+                    <Send className="size-3 mr-1" />
+                    Send
+                  </>
+                )}
+              </Button>
+            </form>
           </div>
         )}
 

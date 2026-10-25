@@ -12,6 +12,7 @@ import {
   UploadCloud,
   FileText,
   Trash2,
+  Mail,
 } from "lucide-react";
 import React, { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
@@ -103,9 +104,11 @@ export function ServiceDialog({
   const isFloorPlanRequired = isFloorPlanRequiredService(service);
   const isConsultation = true;
 
-  const [step, setStep] = useState<"floorplan" | "datetime" | "details">(
-    isFloorPlanRequired ? "floorplan" : "datetime"
-  );
+  const [step, setStep] = useState<
+    "floorplan" | "datetime" | "details" | "post_payment_email"
+  >(isFloorPlanRequired ? "floorplan" : "datetime");
+  const [completedLeadId, setCompletedLeadId] = useState<string | null>(null);
+  const [postPaymentSaving, setPostPaymentSaving] = useState(false);
   const [selectedDate, setSelectedDate] = useState<dayjs.Dayjs | null>(null);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
   const [floorPlanFile, setFloorPlanFile] = useState<FloorPlanFile | null>(null);
@@ -131,6 +134,8 @@ export function ServiceDialog({
       setName("");
       setEmail("");
       setPhone("");
+      setCompletedLeadId(null);
+      setPostPaymentSaving(false);
       setFloorPlanFile(null);
       setUploading(false);
       setIsDragging(false);
@@ -296,8 +301,13 @@ export function ServiceDialog({
     e.preventDefault();
     if (!service) return;
 
-    if (!name.trim() || !phone.trim() || !email.trim()) {
-      toast.error("Please enter your name, email, and phone number");
+    if (!name.trim() || !phone.trim()) {
+      toast.error("Please enter your name and phone number");
+      return;
+    }
+
+    if (isConsultation && phone.trim().replace(/\D/g, "").length < 10) {
+      toast.error("Please enter a valid 10-digit phone number");
       return;
     }
 
@@ -311,13 +321,6 @@ export function ServiceDialog({
     const isPaymentRequired = service.amount > 0;
 
     const leadNotes = [
-      {
-        id: `note_${Date.now()}_email`,
-        text: `✉️ Client Email: ${email.trim()}`,
-        createdAt: new Date().toISOString(),
-        formattedTime: dayjs().format("ddd, MMM D, YYYY [at] h:mm A"),
-        author: "Client Input",
-      },
       ...(floorPlanFile
         ? [
             {
@@ -353,7 +356,7 @@ export function ServiceDialog({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             name: finalName,
-            email: email.trim(),
+            email: null,
             phone: fullPhone,
             serviceName: service.title,
             paymentStatus: "pending",
@@ -403,21 +406,20 @@ export function ServiceDialog({
               const verifyData = await verifyRes.json();
               if (!verifyRes.ok) throw new Error(verifyData.error);
 
-              toast.success("Payment successful! Appointment scheduled.");
-              onClose();
-              window.location.href = `/thank-you?date=${selectedDate ? selectedDate.format("YYYY-MM-DD") : ""}&time=${selectedTime || ""}`;
+              toast.success("Payment successful!");
+              setCompletedLeadId(leadId);
+              setStep("post_payment_email");
             } catch (err: any) {
               console.error("Verification failed:", err);
-              toast.error("Payment verified, but sync is slow. Our support team will confirm shortly.");
-              onClose();
-              window.location.href = `/thank-you?date=${selectedDate ? selectedDate.format("YYYY-MM-DD") : ""}&time=${selectedTime || ""}`;
+              toast.error("Payment verified! Please provide your email for confirmation.");
+              setCompletedLeadId(leadId);
+              setStep("post_payment_email");
             } finally {
               setSubmitting(false);
             }
           },
           prefill: {
             name: finalName,
-            email: email.trim(),
             contact: fullPhone,
           },
           theme: {
@@ -486,11 +488,53 @@ export function ServiceDialog({
             }),
           }).catch(console.error);
         }
-        toast.success("Request received! Our support team will contact you shortly.");
-        onClose();
-        window.location.href = `/thank-you?date=${selectedDate ? selectedDate.format("YYYY-MM-DD") : ""}&time=${selectedTime || ""}`;
+        toast.success("Request received!");
+        setCompletedLeadId(leadId);
+        setStep("post_payment_email");
       }
     }
+  };
+
+
+  const handleSavePostPaymentEmail = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!email.trim()) {
+      handleSkipPostPaymentEmail();
+      return;
+    }
+
+    if (!email.includes("@") || !email.includes(".")) {
+      toast.error("Please enter a valid email address");
+      return;
+    }
+
+    setPostPaymentSaving(true);
+    try {
+      if (completedLeadId) {
+        await fetch("/api/lead/save-email", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            leadId: completedLeadId,
+            email: email.trim(),
+          }),
+        });
+      }
+      toast.success("Confirmation sent to your email!");
+      onClose();
+      window.location.href = `/thank-you?date=${selectedDate ? selectedDate.format("YYYY-MM-DD") : ""}&time=${selectedTime || ""}&email=${encodeURIComponent(email.trim())}&leadId=${completedLeadId || ""}`;
+    } catch (err) {
+      console.error("Error saving email post-payment:", err);
+      onClose();
+      window.location.href = `/thank-you?date=${selectedDate ? selectedDate.format("YYYY-MM-DD") : ""}&time=${selectedTime || ""}&leadId=${completedLeadId || ""}`;
+    } finally {
+      setPostPaymentSaving(false);
+    }
+  };
+
+  const handleSkipPostPaymentEmail = () => {
+    onClose();
+    window.location.href = `/thank-you?date=${selectedDate ? selectedDate.format("YYYY-MM-DD") : ""}&time=${selectedTime || ""}&leadId=${completedLeadId || ""}`;
   };
 
   const handleNextFromDateTime = () => {
@@ -537,7 +581,7 @@ export function ServiceDialog({
           </div>
 
           {/* Stepper Progress Bar for Special 3D Design Services */}
-          {isFloorPlanRequired && (
+          {isFloorPlanRequired && step !== "post_payment_email" && (
             <div className="flex items-center justify-center gap-1.5 pt-1 text-[10px] font-semibold tracking-wider uppercase">
               <span
                 className={cn(
@@ -887,19 +931,7 @@ export function ServiceDialog({
               />
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="service-email">
-                Email Address <span className="text-xs text-muted-foreground font-normal">(for booking confirmation)</span>
-              </Label>
-              <Input
-                id="service-email"
-                type="email"
-                placeholder="e.g. rahul@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-              />
-            </div>
+
 
             <div className="space-y-2">
               <Label htmlFor="service-phone">Phone Number</Label>
@@ -947,6 +979,79 @@ export function ServiceDialog({
             </Button>
           </form>
         )}
+        {/* STEP 4: Post-Payment Email Collection */}
+        {step === "post_payment_email" && (
+          <form
+            onSubmit={handleSavePostPaymentEmail}
+            className="flex-1 overflow-y-auto min-h-0 space-y-4 pb-2 pt-1 text-left"
+          >
+            <div className="rounded-xl border border-border/60 bg-muted/30 p-3.5 space-y-2 text-xs">
+              <div className="flex items-center justify-between font-medium">
+                <span className="text-muted-foreground">Service:</span>
+                <span className="font-semibold text-foreground text-right">{service?.title}</span>
+              </div>
+              {selectedDate && selectedTime && (
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Scheduled For:</span>
+                  <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+                    {selectedDate.format("MMM D, YYYY")} at {selectedTime}
+                  </span>
+                </div>
+              )}
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Client Name:</span>
+                <span className="font-semibold text-foreground">{name}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Contact:</span>
+                <span className="font-semibold text-foreground">{isConsultation ? `+91 ${phone}` : phone}</span>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="post-service-email" className="text-sm font-semibold">
+                Email Address
+              </Label>
+              <Input
+                id="post-service-email"
+                type="email"
+                placeholder="e.g. rahul@example.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                autoFocus
+                className="h-10 text-sm"
+              />
+              <p className="text-[11px] text-muted-foreground">
+                We will send your calendar invite, session link, and invoice to this email.
+              </p>
+            </div>
+
+            <div className="space-y-2 pt-2">
+              <Button
+                type="submit"
+                className="w-full h-11 text-sm font-semibold bg-emerald-600 hover:bg-emerald-500 text-white shadow-md cursor-pointer"
+                disabled={postPaymentSaving}
+              >
+                {postPaymentSaving ? (
+                  <Loader2 className="mr-2 size-4 animate-spin" />
+                ) : (
+                  <Mail className="mr-2 size-4" />
+                )}
+                Save &amp; View Details
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={handleSkipPostPaymentEmail}
+                disabled={postPaymentSaving}
+                className="w-full h-8 text-xs text-muted-foreground hover:text-foreground cursor-pointer"
+              >
+                Skip for now &rarr;
+              </Button>
+            </div>
+          </form>
+        )}
+
       </DialogContent>
     </Dialog>
   );

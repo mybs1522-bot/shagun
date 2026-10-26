@@ -973,9 +973,7 @@ export function ServiceDialog({
               ) : (
                 <CheckCircle className="mr-2 size-4" />
               )}
-              {service && service.amount > 0
-                ? `Proceed to Payment (₹${service.amount.toLocaleString("en-IN")})`
-                : "Submit Request"}
+              Submit
             </Button>
           </form>
         )}

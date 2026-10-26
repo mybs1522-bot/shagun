@@ -103,6 +103,7 @@ export function ServiceDialog({
 }) {
   const isFloorPlanRequired = isFloorPlanRequiredService(service);
   const isConsultation = true;
+  const titleLower = service?.title?.toLowerCase() || "";
 
   const [step, setStep] = useState<
     "floorplan" | "datetime" | "details" | "post_payment_email"
@@ -549,7 +550,7 @@ export function ServiceDialog({
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
       <DialogContent className="max-w-[92vw] sm:max-w-md max-h-[88vh] overflow-hidden flex flex-col">
         <DialogHeader>
-          <div className="relative flex items-center justify-center py-1">
+          <div className="relative flex items-center justify-center py-1 px-8">
             {step === "details" && (
               <Button
                 variant="ghost"
@@ -571,12 +572,18 @@ export function ServiceDialog({
               </Button>
             )}
 
-            <DialogTitle className="text-base sm:text-lg font-bold">
+            <DialogTitle className="text-base sm:text-lg font-bold text-center leading-snug">
               {step === "floorplan"
                 ? "Upload Your Floor Plan"
                 : step === "datetime"
                   ? "Select Date & Time"
-                  : service?.title || "Book A Call"}
+                  : step === "post_payment_email"
+                    ? "Booking Confirmed! 🎉"
+                    : titleLower.includes("3d design")
+                      ? "3D Design for Interiors & Exteriors"
+                      : titleLower.includes("floor plan")
+                        ? "Floor Plan Design"
+                        : "Book A Call"}
             </DialogTitle>
           </div>
 
@@ -623,27 +630,42 @@ export function ServiceDialog({
               <span>
                 Please upload your existing floor plan or space drawing for{" "}
                 <span className="font-semibold text-foreground">
-                  {service?.title}
+                  {titleLower.includes("3d design") ? "3D Design Discussion" : (service?.title || "your project")}
                 </span>{" "}
                 before proceeding to date booking.
               </span>
             ) : step === "datetime" ? (
               "Choose an available slot for your consultation."
+            ) : step === "post_payment_email" ? (
+              "Where should we send your booking confirmation & calendar invite?"
             ) : (
-              <>
-                <span className="block">
-                  Enter your details below to confirm{" "}
-                  <span className="font-semibold text-foreground">
-                    {service?.title}
-                  </span>
-                  .
-                </span>
-                {service?.description && (
-                  <span className="mt-1 block text-[10px] xs:text-[11px] sm:text-sm font-medium text-emerald-600 dark:text-emerald-400 whitespace-normal">
-                    💡 {service.description}
-                  </span>
+              <span>
+                {titleLower.includes("3d design") ? (
+                  <>
+                    Enter your details below to request call for{" "}
+                    <span className="font-semibold text-foreground">
+                      3D Design Discussion
+                    </span>
+                    .
+                  </>
+                ) : titleLower.includes("floor plan") ? (
+                  <>
+                    Enter your details below to request call for{" "}
+                    <span className="font-semibold text-foreground">
+                      Floor Plan Design
+                    </span>
+                    .
+                  </>
+                ) : (
+                  <>
+                    Enter your details below to request{" "}
+                    <span className="font-semibold text-foreground">
+                      {service?.title || "your consultation call"}
+                    </span>
+                    .
+                  </>
                 )}
-              </>
+              </span>
             )}
           </DialogDescription>
         </DialogHeader>

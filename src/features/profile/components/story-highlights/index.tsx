@@ -35,7 +35,7 @@ function StoryItem({
         </div>
       </div>
 
-      {/* Highlight Title with 2-line wrapping to prevent awkward truncation */}
+      {/* Highlight Title with 2-line wrapping to prevent truncation */}
       <div className="h-7 sm:h-8 flex items-center justify-center">
         <span className="text-[10px] sm:text-[11px] font-medium text-foreground tracking-tight text-center leading-tight line-clamp-2 max-w-[72px] sm:max-w-[80px] group-hover:text-primary transition-colors">
           {story.title}
@@ -70,6 +70,34 @@ export function StoryHighlights({ className }: { className?: string }) {
 
   return (
     <>
+      {/* Inline styles ensure the marquee animation is 100% active and cannot be purged by CSS compilers */}
+      <style>{`
+        @keyframes storyMarqueeAnimation {
+          0% {
+            transform: translate3d(0, 0, 0);
+          }
+          100% {
+            transform: translate3d(-50%, 0, 0);
+          }
+        }
+        .story-marquee-track {
+          display: flex;
+          width: max-content;
+          animation: storyMarqueeAnimation 28s linear infinite;
+        }
+        .story-marquee-track.paused {
+          animation-play-state: paused !important;
+        }
+        @media (min-width: 640px) {
+          .story-marquee-track {
+            animation: none !important;
+            transform: none !important;
+            width: 100% !important;
+            justify-content: center !important;
+          }
+        }
+      `}</style>
+
       <section
         id="highlights"
         className={cn(
@@ -78,59 +106,54 @@ export function StoryHighlights({ className }: { className?: string }) {
         )}
       >
         <div className="py-3 px-3 sm:px-4">
-          <div className="flex items-center justify-between mb-2.5 px-1">
-            <span className="text-[11px] sm:text-xs font-mono font-medium text-muted-foreground uppercase tracking-wider">
-              Featured Highlights
-            </span>
-            <span className="text-[10px] font-mono text-muted-foreground/80">
+          {/* Header with bold 'Services' */}
+          <div className="flex items-center justify-between mb-3 px-1">
+            <h2 className="font-heading text-lg sm:text-xl font-bold tracking-tight text-foreground">
+              Services
+            </h2>
+            <span className="text-[10px] sm:text-xs font-mono text-muted-foreground">
               Tap to view
             </span>
           </div>
 
-          {/* Mobile Auto-Scroll Marquee (< 640px) */}
+          {/* Story Container */}
           <div
-            className="sm:hidden relative flex overflow-hidden group touch-pan-y"
-            style={{ "--marquee-duration": "30s" } as React.CSSProperties}
+            className="relative flex overflow-hidden group touch-pan-y"
             onTouchStart={handleTouchStart}
             onTouchEnd={handleTouchEnd}
             onMouseEnter={() => setIsPaused(true)}
             onMouseLeave={() => setIsPaused(false)}
           >
-            {/* Subtle Fade Edges */}
-            <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-6 bg-gradient-to-r from-background to-transparent" />
-            <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-6 bg-gradient-to-l from-background to-transparent" />
+            {/* Subtle Fade Edges on Mobile */}
+            <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-6 bg-gradient-to-r from-background to-transparent sm:hidden" />
+            <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-6 bg-gradient-to-l from-background to-transparent sm:hidden" />
 
-            {/* Seamless Double Copy Loop */}
-            {[0, 1].map((copy) => (
-              <div
-                key={copy}
-                className={cn(
-                  "flex shrink-0 gap-4 pr-4",
-                  "animate-marquee-left",
-                  isPaused && "[animation-play-state:paused]"
-                )}
-                aria-hidden={copy === 1}
-              >
-                {STORY_HIGHLIGHTS.map((story, index) => (
+            {/* Seamless Infinite Marquee Track */}
+            <div
+              className={cn(
+                "story-marquee-track flex gap-4 sm:gap-6 pr-4 sm:pr-0",
+                isPaused && "paused"
+              )}
+            >
+              {/* Set 1: Original 7 items */}
+              {STORY_HIGHLIGHTS.map((story, index) => (
+                <StoryItem
+                  key={`set1-${story.id}`}
+                  story={story}
+                  onClick={() => handleOpenStory(index)}
+                />
+              ))}
+
+              {/* Set 2: Duplicate for seamless infinite loop on mobile (hidden on desktop) */}
+              {STORY_HIGHLIGHTS.map((story, index) => (
+                <div key={`set2-${story.id}`} className="sm:hidden shrink-0">
                   <StoryItem
-                    key={`${copy}-${story.id}`}
                     story={story}
                     onClick={() => handleOpenStory(index)}
                   />
-                ))}
-              </div>
-            ))}
-          </div>
-
-          {/* Desktop Static Centered Row (>= 640px) */}
-          <div className="hidden sm:flex justify-center items-start gap-6 py-1 px-2">
-            {STORY_HIGHLIGHTS.map((story, index) => (
-              <StoryItem
-                key={story.id}
-                story={story}
-                onClick={() => handleOpenStory(index)}
-              />
-            ))}
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </section>

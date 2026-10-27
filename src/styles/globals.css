@@ -314,3 +314,32 @@
     transform: rotate(0deg);
   }
 }
+
+/* Story highlight slow auto-scroll marquee */
+@keyframes story-marquee-left {
+  0% {
+    transform: translate3d(0, 0, 0);
+  }
+  100% {
+    transform: translate3d(-50%, 0, 0);
+  }
+}
+
+.story-marquee-track {
+  display: flex;
+  width: max-content;
+  animation: story-marquee-left 28s linear infinite;
+}
+
+.story-marquee-track.paused {
+  animation-play-state: paused !important;
+}
+
+@media (min-width: 640px) {
+  .story-marquee-track {
+    animation: none !important;
+    transform: none !important;
+    width: 100% !important;
+    justify-content: center !important;
+  }
+}

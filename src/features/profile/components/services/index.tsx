@@ -1,4 +1,4 @@
-import { Phone, LayoutPanelTop, Package, Calculator, Wallet } from "lucide-react";
+import { Phone } from "lucide-react";
 import React from "react";
 
 import { getSupabaseAdmin } from "@/lib/supabase";
@@ -215,26 +215,6 @@ export async function Services() {
               )}
             </p>
             <div className="space-y-3">
-              {category.toLowerCase().includes("consultation") && (
-                <div className="flex flex-row flex-nowrap overflow-x-auto whitespace-nowrap gap-1 pb-2 justify-start scrollbar-none">
-                  <span className="inline-flex items-center gap-1 shrink-0 rounded-full bg-black text-white dark:bg-white dark:text-black px-2 py-0.5 text-[8px] font-bold uppercase tracking-wider shadow-sm border border-neutral-800 dark:border-neutral-200">
-                    <LayoutPanelTop className="size-2.5" />
-                    Floor Plan
-                  </span>
-                  <span className="inline-flex items-center gap-1 shrink-0 rounded-full bg-black text-white dark:bg-white dark:text-black px-2 py-0.5 text-[8px] font-bold uppercase tracking-wider shadow-sm border border-neutral-800 dark:border-neutral-200">
-                    <Package className="size-2.5" />
-                    3D Design
-                  </span>
-                  <span className="inline-flex items-center gap-1 shrink-0 rounded-full bg-black text-white dark:bg-white dark:text-black px-2 py-0.5 text-[8px] font-bold uppercase tracking-wider shadow-sm border border-neutral-800 dark:border-neutral-200">
-                    <Calculator className="size-2.5" />
-                    Estimates
-                  </span>
-                  <span className="inline-flex items-center gap-1 shrink-0 rounded-full bg-black text-white dark:bg-white dark:text-black px-2 py-0.5 text-[8px] font-bold uppercase tracking-wider shadow-sm border border-neutral-800 dark:border-neutral-200">
-                    <Wallet className="size-2.5" />
-                    Budgeting
-                  </span>
-                </div>
-              )}
               {items.map((service, index) => (
                 <ServiceItem
                   key={service.id}

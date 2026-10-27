@@ -16,6 +16,7 @@ import { Reviews } from "@/features/profile/components/reviews";
 import { SectionsGrid } from "@/features/profile/components/sections-grid";
 import { Services } from "@/features/profile/components/services";
 import { StickyHeader } from "@/features/profile/components/sticky-header";
+import { StoryHighlights } from "@/features/profile/components/story-highlights";
 import { cn } from "@/lib/cn";
 
 export const revalidate = 0;
@@ -37,9 +38,10 @@ export default async function Page() {
           <Pattern />
 
           <main>
-
-
             <About />
+            <Pattern />
+
+            <StoryHighlights />
             <Pattern />
 
             <Services />

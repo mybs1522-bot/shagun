@@ -1,7 +1,7 @@
 export const NAV_LINKS = [
   {
     title: "About",
-    href: "/#about",
+    href: "/about",
   },
   {
     title: "Books",

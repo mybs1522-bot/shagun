@@ -11,6 +11,7 @@ import {
   Lock,
   Phone,
   ShieldCheck,
+  Sparkles,
   User,
 } from "lucide-react";
 import Image from "next/image";
@@ -34,6 +35,164 @@ const AVAILABLE_PRODUCTS = [
   "TV Units",
 ];
 
+const MODULAR_DESIGNS = [
+  // Set 1: Kitchens, Wardrobes, Vanities, TV Units
+  {
+    id: "k-1",
+    category: "Kitchens",
+    title: "Luxury Island Kitchen",
+    image: "/images/services/kitchen/kitchen-1.webp",
+  },
+  {
+    id: "w-1",
+    category: "Wardrobes",
+    title: "Fluted Glass Sliding Wardrobe",
+    image: "/images/services/bedroom/bedroom-1.webp",
+  },
+  {
+    id: "v-1",
+    category: "Bathroom Vanity",
+    title: "Floating Fluted Vanity",
+    image: "/images/services/washroom/washroom-1.webp",
+  },
+  {
+    id: "t-1",
+    category: "TV Units",
+    title: "Acoustic Slat TV Console",
+    image: "/images/services/living/living-1.webp",
+  },
+
+  // Set 2
+  {
+    id: "k-2",
+    category: "Kitchens",
+    title: "Modern Acrylic Kitchen",
+    image: "/images/services/kitchen/kitchen-2.webp",
+  },
+  {
+    id: "w-2",
+    category: "Wardrobes",
+    title: "Floor-to-Ceiling Wardrobe",
+    image: "/images/services/bedroom/bedroom-2.webp",
+  },
+  {
+    id: "v-2",
+    category: "Bathroom Vanity",
+    title: "Double Basin Vanity",
+    image: "/images/services/washroom/washroom-2.webp",
+  },
+  {
+    id: "t-2",
+    category: "TV Units",
+    title: "Ambient Backlit TV Wall",
+    image: "/images/services/living/living-2.webp",
+  },
+
+  // Set 3
+  {
+    id: "k-3",
+    category: "Kitchens",
+    title: "Minimalist Matte Kitchen",
+    image: "/images/services/kitchen/kitchen-3.webp",
+  },
+  {
+    id: "w-3",
+    category: "Wardrobes",
+    title: "Walk-In Wardrobe Suite",
+    image: "/images/services/bedroom/bedroom-3.webp",
+  },
+  {
+    id: "v-3",
+    category: "Bathroom Vanity",
+    title: "Seamless Quartz Vanity",
+    image: "/images/services/washroom/washroom-3.webp",
+  },
+  {
+    id: "t-3",
+    category: "TV Units",
+    title: "Floating Media Console",
+    image: "/images/services/living/living-3.webp",
+  },
+
+  // Set 4
+  {
+    id: "k-4",
+    category: "Kitchens",
+    title: "Contemporary Parallel Kitchen",
+    image: "/images/services/kitchen/kitchen-4.webp",
+  },
+  {
+    id: "w-4",
+    category: "Wardrobes",
+    title: "Lacquered Glass Wardrobe",
+    image: "/images/services/bedroom/bedroom-4.webp",
+  },
+  {
+    id: "v-4",
+    category: "Bathroom Vanity",
+    title: "Compact Powder Vanity",
+    image: "/images/services/washroom/washroom-4.webp",
+  },
+  {
+    id: "t-4",
+    category: "TV Units",
+    title: "Marble & Charcoal TV Wall",
+    image: "/images/services/living/living-4.webp",
+  },
+
+  // Set 5
+  {
+    id: "k-5",
+    category: "Kitchens",
+    title: "Handleless Modular Kitchen",
+    image: "/images/services/kitchen/kitchen-5.webp",
+  },
+  {
+    id: "w-5",
+    category: "Wardrobes",
+    title: "Sensor LED Wardrobe",
+    image: "/images/services/bedroom/bedroom-5.webp",
+  },
+  {
+    id: "v-5",
+    category: "Bathroom Vanity",
+    title: "Smart Touch LED Vanity",
+    image: "/images/services/washroom/washroom-5.webp",
+  },
+  {
+    id: "t-5",
+    category: "TV Units",
+    title: "Concealed Cable Console",
+    image: "/images/services/living/living-5.webp",
+  },
+
+  // Set 6
+  {
+    id: "k-6",
+    category: "Kitchens",
+    title: "Quartz Finish Kitchen",
+    image: "/images/services/kitchen/kitchen-6.webp",
+  },
+  {
+    id: "w-6",
+    category: "Wardrobes",
+    title: "Oak Wood Finish Wardrobe",
+    image: "/images/services/bedroom/bedroom-6.webp",
+  },
+  {
+    id: "v-6",
+    category: "Bathroom Vanity",
+    title: "Master Bath Luxury Vanity",
+    image: "/images/services/washroom/washroom-6.webp",
+  },
+  {
+    id: "t-6",
+    category: "TV Units",
+    title: "Grand Living Media Unit",
+    image: "/images/services/living/living-6.webp",
+  },
+];
+
 export default function ModularPage() {
   const formRef = useRef<HTMLDivElement>(null);
 
@@ -46,6 +205,7 @@ export default function ModularPage() {
   ]);
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [isMarqueePaused, setIsMarqueePaused] = useState(false);
 
   const toggleProduct = (product: string) => {
     setSelectedProducts((prev) =>
@@ -53,6 +213,14 @@ export default function ModularPage() {
         ? prev.filter((p) => p !== product)
         : [...prev, product]
     );
+  };
+
+  const handleSelectDesign = (category: string) => {
+    if (!selectedProducts.includes(category)) {
+      setSelectedProducts((prev) => [...prev, category]);
+    }
+    toast.success(`Selected ${category} in quotation form`);
+    formRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -128,6 +296,26 @@ export default function ModularPage() {
 
   return (
     <div className="min-h-screen bg-background text-foreground selection:bg-primary/20 flex flex-col justify-between">
+      {/* Inline styles for smooth infinite marquee track */}
+      <style>{`
+        @keyframes modularMarqueeAnimation {
+          0% {
+            transform: translate3d(0, 0, 0);
+          }
+          100% {
+            transform: translate3d(-50%, 0, 0);
+          }
+        }
+        .modular-marquee-track {
+          display: flex;
+          width: max-content;
+          animation: modularMarqueeAnimation 46s linear infinite;
+        }
+        .modular-marquee-track.paused {
+          animation-play-state: paused !important;
+        }
+      `}</style>
+
       {/* Top Header */}
       <header className="sticky top-0 z-40 border-b border-grid bg-background/90 backdrop-blur-md">
         <div className="mx-auto flex h-14 max-w-4xl items-center justify-between px-4 sm:px-6">
@@ -150,9 +338,9 @@ export default function ModularPage() {
       </header>
 
       {/* Main Container */}
-      <main className="mx-auto w-full max-w-3xl px-4 py-8 sm:py-12 space-y-6 sm:space-y-8 flex-1">
-        {/* Hero Section (Matching Image 2) */}
-        <div className="space-y-3 sm:space-y-4 text-center max-w-2xl mx-auto">
+      <main className="mx-auto w-full max-w-4xl px-3.5 sm:px-6 py-6 sm:py-10 space-y-6 sm:space-y-8 flex-1">
+        {/* Hero Section */}
+        <div className="space-y-3 sm:space-y-4 text-center max-w-2xl mx-auto px-1">
           <div className="inline-flex items-center gap-1.5 rounded-full border border-border bg-muted/60 px-3.5 py-1 text-[11px] sm:text-xs font-medium text-foreground">
             <Factory className="size-3.5 shrink-0 text-primary" />
             <span>Factory Direct Modular Joinery • Precision German Engineering</span>
@@ -166,6 +354,65 @@ export default function ModularPage() {
             Skip 30–40% showroom markups and months of noisy carpentry delays.
             Get German CNC precision, 100% waterproof modular interiors delivered in 21 days with a 10-year warranty. Lock in your factory-direct quotation &amp; free 3D layout consultation today.
           </p>
+        </div>
+
+        {/* 24 Scrolling Modular Designs (Rounded Corner Squares) */}
+        <div className="space-y-2.5">
+          <div className="flex items-center justify-between px-1 text-xs text-muted-foreground max-w-xl mx-auto">
+            <span className="font-semibold text-foreground flex items-center gap-1.5 text-xs sm:text-sm">
+              <Sparkles className="size-3.5 text-primary" />
+              <span>Factory Designs Showcase (24 Units)</span>
+            </span>
+            <span className="font-mono text-[10px] sm:text-[11px] text-muted-foreground">
+              Tap any to select
+            </span>
+          </div>
+
+          {/* Marquee Track Container with Gradient Edge Fades */}
+          <div
+            className="relative overflow-hidden group select-none -mx-3.5 sm:-mx-6 px-1"
+            onTouchStart={() => setIsMarqueePaused(true)}
+            onTouchEnd={() => setIsMarqueePaused(false)}
+            onMouseEnter={() => setIsMarqueePaused(true)}
+            onMouseLeave={() => setIsMarqueePaused(false)}
+          >
+            {/* Left and Right Fade Overlays */}
+            <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-8 sm:w-16 bg-gradient-to-r from-background to-transparent" />
+            <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-8 sm:w-16 bg-gradient-to-l from-background to-transparent" />
+
+            {/* Scrolling Track */}
+            <div
+              className={`modular-marquee-track flex gap-3 sm:gap-4 py-1.5 ${
+                isMarqueePaused ? "paused" : ""
+              }`}
+            >
+              {/* Loop duplicated twice for seamless infinite scroll */}
+              {[...MODULAR_DESIGNS, ...MODULAR_DESIGNS].map((item, idx) => (
+                <div
+                  key={`${item.id}-${idx}`}
+                  onClick={() => handleSelectDesign(item.category)}
+                  className="group relative size-28 sm:size-36 shrink-0 aspect-square rounded-2xl sm:rounded-3xl overflow-hidden border border-border/80 bg-card shadow-xs cursor-pointer transition-all hover:scale-[1.04] hover:shadow-md hover:border-primary/60"
+                  title={`Tap to select ${item.category} in quote form`}
+                >
+                  <Image
+                    src={item.image}
+                    alt={item.title}
+                    fill
+                    sizes="(max-width: 640px) 112px, 144px"
+                    className="object-cover group-hover:scale-105 transition-transform duration-300"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/25 to-transparent flex flex-col justify-end p-2 sm:p-2.5">
+                    <span className="text-[10px] sm:text-[11px] font-bold text-white leading-tight truncate">
+                      {item.title}
+                    </span>
+                    <span className="text-[9px] sm:text-[10px] font-mono text-white/80">
+                      {item.category}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
 
         {/* Quotation Form Card (Matching Image 1) */}

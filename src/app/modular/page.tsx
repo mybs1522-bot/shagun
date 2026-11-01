@@ -5,11 +5,11 @@ import {
   ArrowRight,
   CheckCircle2,
   Circle,
-  Factory,
   Loader2,
   Lock,
   Phone,
   ShieldCheck,
+  Sparkles,
   User,
 } from "lucide-react";
 import Image from "next/image";
@@ -340,8 +340,8 @@ export default function ModularPage() {
         {/* Hero Section */}
         <div className="space-y-3 sm:space-y-4 text-center max-w-2xl mx-auto px-1">
           <div className="inline-flex items-center gap-1.5 rounded-full border border-border bg-muted/60 px-3.5 py-1 text-[11px] sm:text-xs font-medium text-foreground">
-            <Factory className="size-3.5 shrink-0 text-primary" />
-            <span>Factory Direct Modular Joinery • Precision German Engineering</span>
+            <Sparkles className="size-3.5 shrink-0 text-primary" />
+            <span>Luxury Finish &amp; Designs</span>
           </div>
 
           <h1 className="font-heading text-2xl xs:text-3xl sm:text-4xl md:text-[2.75rem] font-bold tracking-tight text-foreground leading-[1.2]">
@@ -538,9 +538,6 @@ export default function ModularPage() {
                     className="pl-9 h-11 rounded-xl text-base sm:text-sm font-mono bg-background border-border"
                   />
                 </div>
-                <p className="text-[11px] text-muted-foreground">
-                  We will share the modular pricing sheets and design catalog on WhatsApp.
-                </p>
               </div>
 
               {/* City / Location Input */}

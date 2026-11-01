@@ -268,60 +268,43 @@ function ModularLeadsDashboard({
 
         const data = await res.json();
         if (data.success) {
-          let serverLeads: ModularLead[] = data.leads || [];
+          const serverLeads: ModularLead[] = data.leads || [];
 
-          // Merge locally saved submissions if present on this device
+          // Clean up any legacy submissions from localStorage to eliminate repeat loops
           try {
-            const clientSubmissions = JSON.parse(
-              localStorage.getItem("my_modular_submissions") || "[]"
-            );
-            if (
-              Array.isArray(clientSubmissions) &&
-              clientSubmissions.length > 0
-            ) {
-              const missing = clientSubmissions.filter(
-                (c: any) =>
-                  !serverLeads.some(
-                    (s) =>
-                      s.id === c.id ||
-                      (s.phone === c.phone &&
-                        Math.abs(
-                          new Date(s.createdAt).getTime() -
-                            new Date(c.createdAt).getTime()
-                        ) < 300000)
-                  )
-              );
-
-              // Auto-sync missing leads to the server
-              for (const m of missing) {
-                fetch("/api/modular/lead", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({
-                    name: m.name,
-                    phone: m.phone,
-                    products: m.products,
-                    city: m.city,
-                    propertyType: m.propertyType,
-                    notes: m.notes,
-                  }),
-                }).catch(() => {});
-              }
-
-              if (missing.length > 0) {
-                serverLeads = [...missing, ...serverLeads];
-              }
+            if (typeof window !== "undefined") {
+              localStorage.removeItem("my_modular_submissions");
             }
           } catch {}
 
-          serverLeads.sort(
+          // Deduplicate any repeated leads (by ID, or identical phone & name within 10 minutes)
+          const uniqueLeads: ModularLead[] = [];
+          const seenKeys = new Set<string>();
+
+          for (const lead of serverLeads) {
+            const cleanPhone = (lead.phone || "").replace(/\D/g, "");
+            const cleanName = (lead.name || "").trim().toLowerCase();
+            const leadTime = new Date(lead.createdAt).getTime();
+            const timeBucket = isNaN(leadTime)
+              ? 0
+              : Math.floor(leadTime / (10 * 60 * 1000));
+            const dedupKey = `${cleanPhone}_${cleanName}_${timeBucket}`;
+
+            if (!seenKeys.has(lead.id) && (!cleanPhone || !seenKeys.has(dedupKey))) {
+              seenKeys.add(lead.id);
+              if (cleanPhone) seenKeys.add(dedupKey);
+              uniqueLeads.push(lead);
+            }
+          }
+
+          uniqueLeads.sort(
             (a, b) =>
               new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
           );
 
-          setLeads(serverLeads);
+          setLeads(uniqueLeads);
           if (showToast) {
-            toast.success(`Synced ${serverLeads.length} leads successfully`);
+            toast.success(`Synced ${uniqueLeads.length} leads successfully`);
           }
         } else {
           toast.error("Could not load leads: " + data.message);

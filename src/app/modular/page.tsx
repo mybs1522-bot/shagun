@@ -486,17 +486,10 @@ export default function ModularPage() {
           ) : (
             /* Form State */
             <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-5">
-              <div className="space-y-1.5 pr-28 sm:pr-0">
-                <div className="inline-flex items-center gap-1.5 rounded-full bg-blue-500/10 px-2.5 py-0.5 text-[10px] font-bold text-blue-600 dark:text-blue-400">
-                  <span className="size-1.5 rounded-full bg-blue-600 dark:bg-blue-400 animate-pulse" />
-                  <span>Factory Quotation Portal</span>
-                </div>
-                <h2 className="font-heading text-lg sm:text-2xl font-bold tracking-tight text-foreground">
-                  Get Instant Factory Quotation Details
+              <div className="pr-24 sm:pr-0">
+                <h2 className="font-heading text-xl sm:text-2xl font-bold tracking-tight text-foreground whitespace-nowrap">
+                  Get Free Quotation
                 </h2>
-                <p className="text-xs sm:text-sm text-muted-foreground">
-                  Select the units you need and enter your contact details below to get an itemized factory price estimate.
-                </p>
               </div>
 
               {/* What are you looking for? Multi-select */}
@@ -602,7 +595,7 @@ export default function ModularPage() {
                     <Loader2 className="size-5 animate-spin mr-2" />
                   ) : (
                     <>
-                      <span>Get Instant Quotation Details</span>
+                      <span>Get Free Quotation</span>
                       <ArrowRight className="size-4.5 ml-2" />
                     </>
                   )}

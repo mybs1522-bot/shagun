@@ -639,7 +639,7 @@ export default function ModularPage() {
 
       {/* Footer */}
       <div>
-        <Footer />
+        <Footer showRefundPolicy={false} />
       </div>
     </div>
   );

@@ -163,8 +163,8 @@ export default function ModularPage() {
           </h1>
 
           <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed max-w-xl mx-auto">
-            Engineered with German CNC laser-precision machinery and certified waterproof materials.
-            Zero on-site carpentry mess, guaranteed 21-day delivery, and direct factory pricing.
+            Skip 30–40% showroom markups and months of noisy carpentry delays.
+            Get German CNC precision, 100% waterproof modular interiors delivered in 21 days with a 10-year warranty. Lock in your factory-direct quotation &amp; free 3D layout consultation today.
           </p>
         </div>
 
@@ -371,7 +371,7 @@ export default function ModularPage() {
               <VerifiedIcon className="size-4 text-[#155dfc] dark:text-[#3b82f6] shrink-0" />
             </div>
             <p className="text-xs text-muted-foreground">
-              Principal Architect &amp; Factory Modular Director
+              Principal Architect &amp; Modular Designer
             </p>
             <div className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
               <ShieldCheck className="size-3.5" />

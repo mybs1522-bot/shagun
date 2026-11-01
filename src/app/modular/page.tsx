@@ -408,15 +408,6 @@ export default function ModularPage() {
           {/* Top Accent Gradient Bar */}
           <div className="absolute top-0 inset-x-0 h-1 sm:h-1.5 bg-gradient-to-r from-blue-600 via-indigo-500 to-blue-600" />
 
-          {/* Top Badge with Pulsing Live Beacon */}
-          <div className="absolute top-0 right-0 bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 font-mono text-[9px] sm:text-[10px] font-bold px-3 py-1.5 rounded-bl-xl uppercase tracking-wider flex items-center gap-1.5 shadow-xs">
-            <span className="relative flex size-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full size-2 bg-emerald-500"></span>
-            </span>
-            <span>FREE FACTORY ESTIMATE</span>
-          </div>
-
           {submitted ? (
             /* Success State */
             <div className="py-6 sm:py-8 text-center space-y-4 animate-in fade-in duration-300">
@@ -459,8 +450,8 @@ export default function ModularPage() {
           ) : (
             /* Form State */
             <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-5">
-              <div className="pr-24 sm:pr-0">
-                <h2 className="font-heading text-xl sm:text-2xl font-bold tracking-tight text-foreground whitespace-nowrap">
+              <div>
+                <h2 className="font-heading text-xl sm:text-2xl font-bold tracking-tight text-foreground">
                   Get Free Quotation
                 </h2>
               </div>

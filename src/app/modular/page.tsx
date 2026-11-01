@@ -6,7 +6,6 @@ import {
   CheckCircle2,
   Circle,
   Factory,
-  Flame,
   Loader2,
   Lock,
   Phone,
@@ -352,7 +351,7 @@ export default function ModularPage() {
 
           <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed max-w-xl mx-auto">
             Skip 30–40% showroom markups and months of noisy carpentry delays.
-            Get German CNC precision, 100% waterproof modular interiors delivered in 21 days with a 10-year warranty. Lock in your factory-direct quotation &amp; free 3D layout consultation today.
+            Get German CNC precision, 100% waterproof modular interiors delivered in 21 days with a 10-year warranty. Lock in your factory-direct quotation today.
           </p>
         </div>
 
@@ -602,15 +601,9 @@ export default function ModularPage() {
                 </Button>
 
                 {/* Trust Row */}
-                <div className="flex flex-col sm:flex-row items-center justify-between text-[11px] text-muted-foreground gap-1.5 px-1">
-                  <div className="flex items-center gap-1.5">
-                    <Lock className="size-3 text-emerald-500" />
-                    <span>100% Privacy. Zero Spam Guarantee.</span>
-                  </div>
-                  <div className="flex items-center gap-1 text-amber-600 dark:text-amber-400 font-medium">
-                    <Flame className="size-3 text-amber-500 fill-amber-500" />
-                    <span>Free 3D Layout Consultation Included</span>
-                  </div>
+                <div className="flex items-center justify-center text-[11px] text-muted-foreground gap-1.5 pt-0.5">
+                  <Lock className="size-3 text-emerald-500" />
+                  <span>100% Privacy. Zero Spam Guarantee.</span>
                 </div>
               </div>
             </form>

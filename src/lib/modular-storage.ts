@@ -185,24 +185,24 @@ export async function getModularLeads(): Promise<ModularLead[]> {
     (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
   );
 
-  // Deduplicate any repeated entries with same phone & name within 10 minutes
+  // Strict deduplication: Each client phone number gets exactly 1 entry (most recent)
   const deduplicated: ModularLead[] = [];
-  const seenKeys = new Set<string>();
+  const seenPhones = new Set<string>();
+  const seenIds = new Set<string>();
 
   for (const l of merged) {
-    const cleanPhone = (l.phone || "").replace(/\D/g, "");
-    const cleanName = (l.name || "").trim().toLowerCase();
-    const leadTime = new Date(l.createdAt).getTime();
-    const timeBucket = isNaN(leadTime)
-      ? 0
-      : Math.floor(leadTime / (10 * 60 * 1000));
-    const dedupKey = `${cleanPhone}_${cleanName}_${timeBucket}`;
+    if (seenIds.has(l.id)) continue;
+    seenIds.add(l.id);
 
-    if (!seenKeys.has(l.id) && (!cleanPhone || !seenKeys.has(dedupKey))) {
-      seenKeys.add(l.id);
-      if (cleanPhone) seenKeys.add(dedupKey);
-      deduplicated.push(l);
+    const digits = (l.phone || "").replace(/\D/g, "");
+    const last10 = digits.slice(-10);
+
+    if (last10) {
+      if (seenPhones.has(last10)) continue;
+      seenPhones.add(last10);
     }
+
+    deduplicated.push(l);
   }
 
   // Sync back into local file cache
@@ -224,25 +224,23 @@ export async function saveModularLead(data: {
   propertyType?: string;
   notes?: string;
 }): Promise<ModularLead> {
-  const cleanPhone = data.phone.trim().replace(/\D/g, "");
-  const cleanName = data.name.trim().toLowerCase();
+  const digits = data.phone.trim().replace(/\D/g, "");
+  const last10 = digits.slice(-10);
 
-  // Deduplication check: if an identical lead was submitted within the last 3 minutes, return it
-  if (cleanPhone) {
+  // Deduplication check: if an identical lead with this phone was submitted within 5 minutes, return existing
+  if (last10) {
     const existing = await getModularLeads();
     const duplicate = existing.find((l) => {
       const p = (l.phone || "").replace(/\D/g, "");
-      const n = (l.name || "").trim().toLowerCase();
-      if (p === cleanPhone && (n === cleanName || !n || !cleanName)) {
-        const diff = Math.abs(Date.now() - new Date(l.createdAt).getTime());
-        return diff < 180000;
-      }
-      return false;
+      return p.endsWith(last10);
     });
 
     if (duplicate) {
-      console.log("ℹ️ Prevented duplicate modular lead submission for:", cleanPhone);
-      return duplicate;
+      const diff = Math.abs(Date.now() - new Date(duplicate.createdAt).getTime());
+      if (diff < 300000) {
+        console.log("ℹ️ Prevented duplicate modular lead submission for phone:", last10);
+        return duplicate;
+      }
     }
   }
 
@@ -467,33 +465,76 @@ export async function updateModularLead(
 /**
  * Delete a modular lead
  */
-export async function deleteModularLead(id: string): Promise<boolean> {
-  const currentLeads = readLocalLeads();
-  const targetLead = currentLeads.find((l) => l.id === id);
-  const targetPhone = targetLead ? (targetLead.phone || "").trim() : "";
+export async function deleteModularLead(
+  id: string,
+  phoneHint?: string
+): Promise<boolean> {
+  // 1. Find lead from full merged leads to resolve its exact phone
+  const allLeads = await getModularLeads();
+  const targetLead = allLeads.find(
+    (l) => l.id === id || (phoneHint && l.phone === phoneHint)
+  );
+  const rawPhone = (phoneHint || targetLead?.phone || "").trim();
+  const digits = rawPhone.replace(/\D/g, "");
+  const last10 = digits.slice(-10);
 
-  const filtered = currentLeads.filter((l) => l.id !== id);
+  // 2. Remove from local JSON cache (match by ID or last 10 digits of phone)
+  const currentLeads = readLocalLeads();
+  const filtered = currentLeads.filter((l) => {
+    if (l.id === id) return false;
+    const lDigits = (l.phone || "").replace(/\D/g, "");
+    if (last10 && lDigits.endsWith(last10)) return false;
+    return true;
+  });
   writeLocalLeads(filtered);
 
-  try {
-    const supabaseAdmin = getSupabaseAdmin();
-    await supabaseAdmin.from("modular_leads").delete().eq("id", id);
-    if (targetPhone) {
-      await supabaseAdmin.from("modular_leads").delete().eq("phone", targetPhone);
-    }
-  } catch {}
+  const isUUID =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+      id
+    );
 
+  // 3. Delete from Supabase `modular_leads`
   try {
     const supabaseAdmin = getSupabaseAdmin();
-    await supabaseAdmin.from("service_leads").delete().eq("id", id);
-    if (targetPhone) {
+    if (isUUID) {
+      await supabaseAdmin.from("modular_leads").delete().eq("id", id);
+    }
+    if (rawPhone) {
+      await supabaseAdmin.from("modular_leads").delete().eq("phone", rawPhone);
+    }
+    if (last10 && last10 !== rawPhone) {
+      await supabaseAdmin
+        .from("modular_leads")
+        .delete()
+        .ilike("phone", `%${last10}%`);
+    }
+  } catch (err) {
+    console.error("Error deleting from modular_leads:", err);
+  }
+
+  // 4. Delete from Supabase `service_leads`
+  try {
+    const supabaseAdmin = getSupabaseAdmin();
+    if (isUUID) {
+      await supabaseAdmin.from("service_leads").delete().eq("id", id);
+    }
+    if (rawPhone) {
       await supabaseAdmin
         .from("service_leads")
         .delete()
-        .eq("phone", targetPhone)
-        .eq("payment_status", "modular_inquiry");
+        .eq("payment_status", "modular_inquiry")
+        .eq("phone", rawPhone);
     }
-  } catch {}
+    if (last10 && last10 !== rawPhone) {
+      await supabaseAdmin
+        .from("service_leads")
+        .delete()
+        .eq("payment_status", "modular_inquiry")
+        .ilike("phone", `%${last10}%`);
+    }
+  } catch (err) {
+    console.error("Error deleting from service_leads:", err);
+  }
 
   return true;
 }

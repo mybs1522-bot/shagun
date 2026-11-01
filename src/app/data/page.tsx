@@ -277,24 +277,24 @@ function ModularLeadsDashboard({
             }
           } catch {}
 
-          // Deduplicate any repeated leads (by ID, or identical phone & name within 10 minutes)
+          // Deduplicate leads: Each client phone number gets exactly 1 entry (most recent)
           const uniqueLeads: ModularLead[] = [];
-          const seenKeys = new Set<string>();
+          const seenPhones = new Set<string>();
+          const seenIds = new Set<string>();
 
           for (const lead of serverLeads) {
-            const cleanPhone = (lead.phone || "").replace(/\D/g, "");
-            const cleanName = (lead.name || "").trim().toLowerCase();
-            const leadTime = new Date(lead.createdAt).getTime();
-            const timeBucket = isNaN(leadTime)
-              ? 0
-              : Math.floor(leadTime / (10 * 60 * 1000));
-            const dedupKey = `${cleanPhone}_${cleanName}_${timeBucket}`;
+            if (seenIds.has(lead.id)) continue;
+            seenIds.add(lead.id);
 
-            if (!seenKeys.has(lead.id) && (!cleanPhone || !seenKeys.has(dedupKey))) {
-              seenKeys.add(lead.id);
-              if (cleanPhone) seenKeys.add(dedupKey);
-              uniqueLeads.push(lead);
+            const digits = (lead.phone || "").replace(/\D/g, "");
+            const last10 = digits.slice(-10);
+
+            if (last10) {
+              if (seenPhones.has(last10)) continue;
+              seenPhones.add(last10);
             }
+
+            uniqueLeads.push(lead);
           }
 
           uniqueLeads.sort(
@@ -396,13 +396,14 @@ function ModularLeadsDashboard({
     }
   };
 
-  const handleDeleteLead = async (id: string, name: string) => {
+  const handleDeleteLead = async (id: string, name: string, phone?: string) => {
     if (!confirm(`Are you sure you want to delete lead for ${name}?`)) return;
 
     try {
       const token = getEffectiveToken();
+      const phoneParam = phone ? `&phone=${encodeURIComponent(phone)}` : "";
       const res = await fetch(
-        `/api/modular/leads?id=${id}&auth=${encodeURIComponent(token)}`,
+        `/api/modular/leads?id=${encodeURIComponent(id)}${phoneParam}&auth=${encodeURIComponent(token)}`,
         {
           method: "DELETE",
           credentials: "include",
@@ -413,10 +414,19 @@ function ModularLeadsDashboard({
       );
       const data = await res.json();
       if (data.success) {
-        setLeads((prev) => prev.filter((l) => l.id !== id));
+        const last10 = (phone || "").replace(/\D/g, "").slice(-10);
+        setLeads((prev) =>
+          prev.filter((l) => {
+            if (l.id === id) return false;
+            if (last10 && (l.phone || "").replace(/\D/g, "").endsWith(last10)) {
+              return false;
+            }
+            return true;
+          })
+        );
         toast.success("Lead removed");
       } else {
-        toast.error("Failed to delete lead");
+        toast.error("Failed to delete lead: " + (data.message || "Unknown error"));
       }
     } catch {
       toast.error("Network error while deleting lead");
@@ -787,7 +797,7 @@ function ModularLeadsDashboard({
                             <Button
                               variant="ghost"
                               size="icon"
-                              onClick={() => handleDeleteLead(lead.id, lead.name)}
+                              onClick={() => handleDeleteLead(lead.id, lead.name, lead.phone)}
                               title="Delete Lead"
                               className="size-8 rounded-lg text-muted-foreground hover:text-destructive"
                             >

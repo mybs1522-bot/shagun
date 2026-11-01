@@ -107,15 +107,16 @@ export async function DELETE(req: NextRequest) {
 
     const { searchParams } = new URL(req.url);
     const id = searchParams.get("id");
+    const phone = searchParams.get("phone");
 
-    if (!id) {
+    if (!id && !phone) {
       return NextResponse.json(
-        { success: false, message: "Lead ID is required" },
+        { success: false, message: "Lead ID or phone is required" },
         { status: 400 }
       );
     }
 
-    const deleted = await deleteModularLead(id);
+    const deleted = await deleteModularLead(id || "", phone || undefined);
     return NextResponse.json({ success: deleted });
   } catch (err: any) {
     console.error("DELETE /api/modular/leads error:", err);

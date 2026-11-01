@@ -147,7 +147,8 @@ export function ServiceLeadsTab() {
       phoneDigits === "0000000000" ||
       phoneDigits.endsWith("0000000000") ||
       idStr.startsWith("block_") ||
-      idStr.startsWith("mem_block_");
+      idStr.startsWith("mem_block_") ||
+      l.payment_status === "modular_inquiry";
 
     return !isBlocked;
   };

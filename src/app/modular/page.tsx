@@ -168,6 +168,31 @@ export default function ModularPage() {
       if (data.success) {
         setSubmitted(true);
         toast.success("Quotation request submitted successfully!");
+
+        // Cache submission locally for instant multi-device / tab synchronization
+        try {
+          const stored = JSON.parse(
+            localStorage.getItem("my_modular_submissions") || "[]"
+          );
+          const submission = data.lead || {
+            id: `client_${Date.now()}`,
+            name: name.trim(),
+            phone: phone.trim(),
+            products: selectedProducts,
+            city: city.trim() || undefined,
+            status: "New",
+            source: "modular_page",
+            createdAt: new Date().toISOString(),
+          };
+          const updated = [
+            submission,
+            ...stored.filter((s: any) => s.id !== submission.id),
+          ].slice(0, 20);
+          localStorage.setItem(
+            "my_modular_submissions",
+            JSON.stringify(updated)
+          );
+        } catch {}
       } else {
         toast.error(data.message || "Something went wrong. Please try again.");
       }

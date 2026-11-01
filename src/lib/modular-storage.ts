@@ -1,5 +1,6 @@
 import fs from "fs";
 import path from "path";
+import { randomUUID } from "crypto";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { sendEmail } from "@/lib/email";
 
@@ -17,46 +18,71 @@ export interface ModularLead {
   updatedAt?: string;
 }
 
-const DATA_DIR = path.join(process.cwd(), "data");
-const LEADS_FILE = path.join(DATA_DIR, "modular_leads.json");
+const PRIMARY_DATA_DIR = path.join(process.cwd(), "data");
+const PRIMARY_LEADS_FILE = path.join(PRIMARY_DATA_DIR, "modular_leads.json");
+const TMP_LEADS_FILE = path.join("/tmp", "modular_leads.json");
 
-function ensureDirectoryExists() {
-  if (!fs.existsSync(DATA_DIR)) {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
+function readJsonFile(filePath: string): ModularLead[] {
+  try {
+    if (!fs.existsSync(filePath)) return [];
+    const raw = fs.readFileSync(filePath, "utf-8");
+    if (!raw.trim()) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeJsonFile(filePath: string, leads: ModularLead[]): boolean {
+  try {
+    const dir = path.dirname(filePath);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    fs.writeFileSync(filePath, JSON.stringify(leads, null, 2), "utf-8");
+    return true;
+  } catch (err) {
+    return false;
   }
 }
 
 function readLocalLeads(): ModularLead[] {
-  ensureDirectoryExists();
-  if (!fs.existsSync(LEADS_FILE)) {
-    return [];
-  }
-  try {
-    const raw = fs.readFileSync(LEADS_FILE, "utf-8");
-    if (!raw.trim()) return [];
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch (err) {
-    console.error("Error reading modular_leads.json:", err);
-    return [];
-  }
+  const primary = readJsonFile(PRIMARY_LEADS_FILE);
+  const tmp = readJsonFile(TMP_LEADS_FILE);
+
+  const map = new Map<string, ModularLead>();
+  primary.forEach((l) => map.set(l.id, l));
+  tmp.forEach((l) => {
+    if (!map.has(l.id)) {
+      map.set(l.id, l);
+    }
+  });
+
+  return Array.from(map.values());
 }
 
 function writeLocalLeads(leads: ModularLead[]): void {
-  ensureDirectoryExists();
-  try {
-    fs.writeFileSync(LEADS_FILE, JSON.stringify(leads, null, 2), "utf-8");
-  } catch (err) {
-    console.error("Error writing modular_leads.json:", err);
+  // Try primary location
+  const okPrimary = writeJsonFile(PRIMARY_LEADS_FILE, leads);
+  // Also sync to /tmp (useful in serverless environments)
+  writeJsonFile(TMP_LEADS_FILE, leads);
+  if (!okPrimary) {
+    console.warn("Primary leads file read-only, wrote to /tmp fallback successfully.");
   }
 }
 
 /**
- * Fetch all modular leads from local file and Supabase (if available)
+ * Fetch all modular leads from local cache AND Supabase database
  */
 export async function getModularLeads(): Promise<ModularLead[]> {
   const localLeads = readLocalLeads();
+  const leadsMap = new Map<string, ModularLead>();
 
+  // Add local leads first
+  localLeads.forEach((l) => leadsMap.set(l.id, l));
+
+  // 1. Try fetching from dedicated Supabase table `modular_leads`
   try {
     const supabaseAdmin = getSupabaseAdmin();
     const { data, error } = await supabaseAdmin
@@ -65,15 +91,16 @@ export async function getModularLeads(): Promise<ModularLead[]> {
       .order("created_at", { ascending: false });
 
     if (!error && Array.isArray(data) && data.length > 0) {
-      // Merge by ID
-      const map = new Map<string, ModularLead>();
-      localLeads.forEach((l) => map.set(l.id, l));
       data.forEach((row: any) => {
         const lead: ModularLead = {
           id: row.id,
           name: row.name || "",
           phone: row.phone || "",
-          products: Array.isArray(row.products) ? row.products : (row.products ? [row.products] : []),
+          products: Array.isArray(row.products)
+            ? row.products
+            : row.products
+            ? [row.products]
+            : ["Kitchens", "Wardrobes", "Bathroom Vanity", "TV Units"],
           city: row.city || "",
           propertyType: row.property_type || "",
           status: row.status || "New",
@@ -82,23 +109,92 @@ export async function getModularLeads(): Promise<ModularLead[]> {
           createdAt: row.created_at || new Date().toISOString(),
           updatedAt: row.updated_at || undefined,
         };
-        map.set(lead.id, lead);
+        leadsMap.set(lead.id, lead);
       });
-      const merged = Array.from(map.values());
-      merged.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-      writeLocalLeads(merged);
-      return merged;
     }
-  } catch {
-    // Supabase table may not exist yet, local fallback works 100%
+  } catch (err) {
+    // Expected if modular_leads table not created yet
   }
 
-  localLeads.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-  return localLeads;
+  // 2. Fetch from existing Supabase table `service_leads` (used across production)
+  try {
+    const supabaseAdmin = getSupabaseAdmin();
+    const { data: servLeads, error: servErr } = await supabaseAdmin
+      .from("service_leads")
+      .select("*")
+      .or("payment_status.eq.modular_inquiry,google_calendar_event_id.eq.modular_quotation")
+      .order("created_at", { ascending: false });
+
+    if (!servErr && Array.isArray(servLeads) && servLeads.length > 0) {
+      for (const row of servLeads) {
+        let meta: any = {};
+        if (row.notes_json) {
+          try {
+            meta =
+              typeof row.notes_json === "string"
+                ? JSON.parse(row.notes_json)
+                : row.notes_json;
+          } catch {
+            meta = {};
+          }
+        }
+
+        let parsedProducts = [
+          "Kitchens",
+          "Wardrobes",
+          "Bathroom Vanity",
+          "TV Units",
+        ];
+        let city = "";
+        let propertyType = "";
+        let notes = "";
+        let status: ModularLead["status"] = (row.lead_status as any) || "New";
+
+        if (meta && typeof meta === "object" && !Array.isArray(meta)) {
+          if (Array.isArray(meta.products) && meta.products.length > 0) {
+            parsedProducts = meta.products;
+          }
+          if (meta.city) city = meta.city;
+          if (meta.propertyType) propertyType = meta.propertyType;
+          if (meta.notes) notes = meta.notes;
+          if (meta.status) status = meta.status;
+        }
+
+        const lead: ModularLead = {
+          id: row.id,
+          name: row.name || "",
+          phone: row.phone || "",
+          products: parsedProducts,
+          city: city || undefined,
+          propertyType: propertyType || undefined,
+          status: status,
+          notes: notes,
+          source: "modular_page",
+          createdAt: row.created_at || new Date().toISOString(),
+        };
+
+        leadsMap.set(lead.id, lead);
+      }
+    }
+  } catch (err) {
+    console.warn("Notice: could not query service_leads for modular inquiries:", err);
+  }
+
+  const merged = Array.from(leadsMap.values());
+  merged.sort(
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+  );
+
+  // Sync back into local file cache
+  if (merged.length > 0) {
+    writeLocalLeads(merged);
+  }
+
+  return merged;
 }
 
 /**
- * Save a new modular lead
+ * Save a new modular quotation lead
  */
 export async function saveModularLead(data: {
   name: string;
@@ -108,13 +204,15 @@ export async function saveModularLead(data: {
   propertyType?: string;
   notes?: string;
 }): Promise<ModularLead> {
+  const leadId = randomUUID();
   const newLead: ModularLead = {
-    id: `mod_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+    id: leadId,
     name: data.name.trim(),
     phone: data.phone.trim(),
-    products: data.products && data.products.length > 0
-      ? data.products
-      : ["Kitchens", "Wardrobes", "Bathroom Vanity", "TV Units"],
+    products:
+      data.products && data.products.length > 0
+        ? data.products
+        : ["Kitchens", "Wardrobes", "Bathroom Vanity", "TV Units"],
     city: data.city?.trim() || undefined,
     propertyType: data.propertyType?.trim() || undefined,
     status: "New",
@@ -123,12 +221,12 @@ export async function saveModularLead(data: {
     createdAt: new Date().toISOString(),
   };
 
-  // 1. Save to local JSON file
+  // 1. Save to local JSON files
   const currentLeads = readLocalLeads();
   currentLeads.unshift(newLead);
   writeLocalLeads(currentLeads);
 
-  // 2. Attempt sync to Supabase table `modular_leads`
+  // 2. Persist to Supabase dedicated table `modular_leads` (if created)
   try {
     const supabaseAdmin = getSupabaseAdmin();
     await supabaseAdmin.from("modular_leads").insert([
@@ -145,11 +243,44 @@ export async function saveModularLead(data: {
         created_at: newLead.createdAt,
       },
     ]);
-  } catch (supaErr) {
-    console.warn("Notice: modular_leads table not in Supabase yet; saved to local JSON storage successfully.", supaErr);
+  } catch {
+    // Fallback table handles this
   }
 
-  // 3. Notify Admin via Email if configured
+  // 3. Persist to existing production table `service_leads` so Vercel never loses it!
+  try {
+    const supabaseAdmin = getSupabaseAdmin();
+    const { error: insertErr } = await supabaseAdmin.from("service_leads").insert({
+      id: newLead.id,
+      name: newLead.name,
+      phone: newLead.phone,
+      service_id: null,
+      appointment_date: null,
+      appointment_time: null,
+      payment_status: "modular_inquiry",
+      lead_status: "New",
+      google_calendar_event_id: "modular_quotation",
+      notes_json: JSON.stringify({
+        isModular: true,
+        products: newLead.products,
+        city: newLead.city || "",
+        propertyType: newLead.propertyType || "",
+        notes: newLead.notes || "",
+        status: newLead.status,
+      }),
+      created_at: newLead.createdAt,
+    });
+
+    if (insertErr) {
+      console.error("Error inserting modular inquiry into service_leads:", insertErr);
+    } else {
+      console.log("✓ Modular lead persisted to Supabase service_leads successfully:", newLead.id);
+    }
+  } catch (err) {
+    console.error("Supabase service_leads insert exception:", err);
+  }
+
+  // 4. Send Email Notification
   try {
     const recipientEmail = process.env.NOTIFY_EMAIL || "mybs1522@gmail.com";
     const productList = newLead.products.join(", ");
@@ -172,30 +303,29 @@ export async function saveModularLead(data: {
                 <td style="padding: 8px 0; color: #6b7280;">📞 Phone</td>
                 <td style="padding: 8px 0; font-weight: 600; color: #2563eb;">
                   <a href="tel:${newLead.phone}" style="color: #2563eb; text-decoration: none;">${newLead.phone}</a>
-                  &nbsp;•&nbsp;
-                  <a href="https://wa.me/91${newLead.phone.replace(/\\D/g, '')}" target="_blank" style="color: #10b981; font-weight: bold;">WhatsApp ↗</a>
                 </td>
               </tr>
               <tr style="border-top: 1px solid #f3f4f6;">
                 <td style="padding: 8px 0; color: #6b7280;">📦 Products</td>
                 <td style="padding: 8px 0; font-weight: 600; color: #111827;">${productList}</td>
               </tr>
-              ${newLead.city ? `
+              ${
+                newLead.city
+                  ? `
               <tr style="border-top: 1px solid #f3f4f6;">
                 <td style="padding: 8px 0; color: #6b7280;">📍 Location</td>
                 <td style="padding: 8px 0; font-weight: 600; color: #111827;">${newLead.city}</td>
-              </tr>` : ""}
+              </tr>`
+                  : ""
+              }
               <tr style="border-top: 1px solid #f3f4f6;">
                 <td style="padding: 8px 0; color: #6b7280;">⏰ Received</td>
-                <td style="padding: 8px 0; font-weight: 500; color: #6b7280;">${new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })} IST</td>
+                <td style="padding: 8px 0; font-weight: 500; color: #6b7280;">${new Date().toLocaleString(
+                  "en-IN",
+                  { timeZone: "Asia/Kolkata" }
+                )} IST</td>
               </tr>
             </table>
-            <div style="margin-top: 24px; text-align: center;">
-              <a href="https://wa.me/91${newLead.phone.replace(/\\D/g, '')}?text=${encodeURIComponent(`Hi ${newLead.name}, this is from Ar. Shagun Yadav's modular studio regarding your quotation request for factory-made ${productList}.`)}" 
-                style="display: inline-block; background: #10b981; color: white; padding: 10px 20px; border-radius: 8px; font-weight: 600; text-decoration: none; font-size: 14px;">
-                Chat on WhatsApp Now
-              </a>
-            </div>
           </div>
           <div style="background: #f9fafb; padding: 12px; text-align: center; color: #9ca3af; font-size: 11px; border-top: 1px solid #e5e7eb;">
             Manage all leads anytime at: <a href="/data" style="color: #2563eb;">/data</a>
@@ -221,33 +351,75 @@ export async function updateModularLead(
 ): Promise<ModularLead | null> {
   const currentLeads = readLocalLeads();
   const idx = currentLeads.findIndex((l) => l.id === id);
-  if (idx === -1) return null;
 
-  const updated: ModularLead = {
-    ...currentLeads[idx],
+  const updatedLead: ModularLead = {
+    ...(idx !== -1
+      ? currentLeads[idx]
+      : {
+          id,
+          name: "",
+          phone: "",
+          products: [],
+          status: "New",
+          createdAt: new Date().toISOString(),
+        }),
     ...updates,
     updatedAt: new Date().toISOString(),
   };
 
-  currentLeads[idx] = updated;
+  if (idx !== -1) {
+    currentLeads[idx] = updatedLead;
+  } else {
+    currentLeads.unshift(updatedLead);
+  }
   writeLocalLeads(currentLeads);
 
-  // Sync to Supabase if available
+  // Sync to Supabase table `modular_leads`
   try {
     const supabaseAdmin = getSupabaseAdmin();
     await supabaseAdmin
       .from("modular_leads")
       .update({
-        status: updated.status,
-        notes: updated.notes,
-        updated_at: updated.updatedAt,
+        status: updatedLead.status,
+        notes: updatedLead.notes,
+        updated_at: updatedLead.updatedAt,
       })
       .eq("id", id);
-  } catch {
-    // Non-blocking
-  }
+  } catch {}
 
-  return updated;
+  // Sync to Supabase table `service_leads`
+  try {
+    const supabaseAdmin = getSupabaseAdmin();
+    const { data: existing } = await supabaseAdmin
+      .from("service_leads")
+      .select("notes_json, lead_status")
+      .eq("id", id)
+      .maybeSingle();
+
+    if (existing) {
+      let meta: any = {};
+      if (existing.notes_json) {
+        try {
+          meta =
+            typeof existing.notes_json === "string"
+              ? JSON.parse(existing.notes_json)
+              : existing.notes_json;
+        } catch {}
+      }
+      if (updates.status) meta.status = updates.status;
+      if (updates.notes !== undefined) meta.notes = updates.notes;
+
+      await supabaseAdmin
+        .from("service_leads")
+        .update({
+          ...(updates.status ? { lead_status: updates.status } : {}),
+          notes_json: JSON.stringify(meta),
+        })
+        .eq("id", id);
+    }
+  } catch {}
+
+  return updatedLead;
 }
 
 /**
@@ -256,16 +428,17 @@ export async function updateModularLead(
 export async function deleteModularLead(id: string): Promise<boolean> {
   const currentLeads = readLocalLeads();
   const filtered = currentLeads.filter((l) => l.id !== id);
-  if (filtered.length === currentLeads.length) return false;
-
   writeLocalLeads(filtered);
 
   try {
     const supabaseAdmin = getSupabaseAdmin();
     await supabaseAdmin.from("modular_leads").delete().eq("id", id);
-  } catch {
-    // Non-blocking
-  }
+  } catch {}
+
+  try {
+    const supabaseAdmin = getSupabaseAdmin();
+    await supabaseAdmin.from("service_leads").delete().eq("id", id);
+  } catch {}
 
   return true;
 }

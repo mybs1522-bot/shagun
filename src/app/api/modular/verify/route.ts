@@ -17,16 +17,18 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const trimmed = password.trim();
     const envPassword = process.env.MODULAR_DATA_PASSWORD?.trim();
     const allowed = [envPassword, ...DEFAULT_PASSWORDS].filter(Boolean);
 
-    if (allowed.includes(password.trim())) {
+    if (allowed.includes(trimmed)) {
       const response = NextResponse.json({
         success: true,
         message: "Authenticated successfully",
+        token: trimmed,
       });
 
-      // Set cookie for session
+      // Set cookie for session (30 days)
       response.cookies.set("modular_data_auth", "true", {
         path: "/",
         maxAge: 60 * 60 * 24 * 30, // 30 days

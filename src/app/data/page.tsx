@@ -51,16 +51,24 @@ const STATUS_COLORS: Record<string, string> = {
 
 export default function ModularDataPage() {
   const [authenticated, setAuthenticated] = useState(false);
+  const [authToken, setAuthToken] = useState<string>("");
   const [checking, setChecking] = useState(true);
 
-  // Hydrate auth state from localStorage or cookies
+  // Hydrate auth state from localStorage, sessionStorage or cookies
   useEffect(() => {
     const isLocal = localStorage.getItem("modular_data_auth") === "true";
     const isSession = sessionStorage.getItem("modular_data_auth") === "true";
-    const hasCookie = document.cookie.includes("modular_data_auth=true");
+    const hasCookie =
+      typeof document !== "undefined" &&
+      document.cookie.includes("modular_data_auth=true");
+    const storedPw =
+      sessionStorage.getItem("modular_password") ||
+      localStorage.getItem("modular_password") ||
+      "";
 
-    if (isLocal || isSession || hasCookie) {
+    if (isLocal || isSession || hasCookie || storedPw) {
       setAuthenticated(true);
+      if (storedPw) setAuthToken(storedPw);
     }
     setChecking(false);
   }, []);
@@ -68,10 +76,20 @@ export default function ModularDataPage() {
   const handleLogout = () => {
     localStorage.removeItem("modular_data_auth");
     sessionStorage.removeItem("modular_data_auth");
-    document.cookie =
-      "modular_data_auth=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+    localStorage.removeItem("modular_password");
+    sessionStorage.removeItem("modular_password");
+    if (typeof document !== "undefined") {
+      document.cookie =
+        "modular_data_auth=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+    }
     setAuthenticated(false);
+    setAuthToken("");
     toast.success("Logged out successfully");
+  };
+
+  const handleLoginSuccess = (token: string) => {
+    setAuthToken(token);
+    setAuthenticated(true);
   };
 
   if (checking) {
@@ -83,39 +101,47 @@ export default function ModularDataPage() {
   }
 
   if (!authenticated) {
-    return <DataPasswordGate onSuccess={() => setAuthenticated(true)} />;
+    return <DataPasswordGate onSuccess={handleLoginSuccess} />;
   }
 
-  return <ModularLeadsDashboard onLogout={handleLogout} />;
+  return (
+    <ModularLeadsDashboard
+      token={authToken}
+      onLogout={handleLogout}
+    />
+  );
 }
 
 // ---------------------------------------------------------------------------
 // Password Gate
 // ---------------------------------------------------------------------------
-function DataPasswordGate({ onSuccess }: { onSuccess: () => void }) {
+function DataPasswordGate({ onSuccess }: { onSuccess: (token: string) => void }) {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!password.trim()) return;
+    const cleanPw = password.trim();
+    if (!cleanPw) return;
 
     setLoading(true);
     try {
       const res = await fetch("/api/modular/verify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password: password.trim() }),
+        body: JSON.stringify({ password: cleanPw }),
       });
       const data = await res.json();
 
       if (data.success) {
         localStorage.setItem("modular_data_auth", "true");
         sessionStorage.setItem("modular_data_auth", "true");
+        localStorage.setItem("modular_password", cleanPw);
+        sessionStorage.setItem("modular_password", cleanPw);
         document.cookie =
           "modular_data_auth=true; path=/; max-age=2592000; SameSite=Lax";
         toast.success("Welcome to Modular Leads Portal");
-        onSuccess();
+        onSuccess(cleanPw);
       } else {
         toast.error(data.message || "Invalid password");
         setPassword("");
@@ -186,7 +212,13 @@ function DataPasswordGate({ onSuccess }: { onSuccess: () => void }) {
 // ---------------------------------------------------------------------------
 // Dashboard View
 // ---------------------------------------------------------------------------
-function ModularLeadsDashboard({ onLogout }: { onLogout: () => void }) {
+function ModularLeadsDashboard({
+  token: initialToken,
+  onLogout,
+}: {
+  token: string;
+  onLogout: () => void;
+}) {
   const [leads, setLeads] = useState<ModularLead[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -198,38 +230,143 @@ function ModularLeadsDashboard({ onLogout }: { onLogout: () => void }) {
   const [noteText, setNoteText] = useState("");
   const [savingNote, setSavingNote] = useState(false);
 
-  const fetchLeads = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await fetch("/api/modular/leads");
-      const data = await res.json();
-      if (data.success) {
-        setLeads(data.leads || []);
-      } else {
-        toast.error("Could not load leads: " + data.message);
-      }
-    } catch {
-      toast.error("Network error while fetching leads");
-    } finally {
-      setLoading(false);
+  const getEffectiveToken = useCallback(() => {
+    if (initialToken) return initialToken;
+    if (typeof window !== "undefined") {
+      return (
+        sessionStorage.getItem("modular_password") ||
+        localStorage.getItem("modular_password") ||
+        "shagun@modular"
+      );
     }
-  }, []);
+    return "shagun@modular";
+  }, [initialToken]);
 
+  const fetchLeads = useCallback(
+    async (showToast = false) => {
+      setLoading(true);
+      try {
+        const token = getEffectiveToken();
+        const res = await fetch(
+          `/api/modular/leads?auth=${encodeURIComponent(token)}`,
+          {
+            method: "GET",
+            credentials: "include",
+            headers: {
+              "Content-Type": "application/json",
+              "x-modular-password": token,
+            },
+            cache: "no-store",
+          }
+        );
+
+        if (res.status === 401) {
+          toast.error("Session expired. Please enter password again.");
+          onLogout();
+          return;
+        }
+
+        const data = await res.json();
+        if (data.success) {
+          let serverLeads: ModularLead[] = data.leads || [];
+
+          // Merge locally saved submissions if present on this device
+          try {
+            const clientSubmissions = JSON.parse(
+              localStorage.getItem("my_modular_submissions") || "[]"
+            );
+            if (
+              Array.isArray(clientSubmissions) &&
+              clientSubmissions.length > 0
+            ) {
+              const missing = clientSubmissions.filter(
+                (c: any) =>
+                  !serverLeads.some(
+                    (s) =>
+                      s.id === c.id ||
+                      (s.phone === c.phone &&
+                        Math.abs(
+                          new Date(s.createdAt).getTime() -
+                            new Date(c.createdAt).getTime()
+                        ) < 300000)
+                  )
+              );
+
+              // Auto-sync missing leads to the server
+              for (const m of missing) {
+                fetch("/api/modular/lead", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    name: m.name,
+                    phone: m.phone,
+                    products: m.products,
+                    city: m.city,
+                    propertyType: m.propertyType,
+                    notes: m.notes,
+                  }),
+                }).catch(() => {});
+              }
+
+              if (missing.length > 0) {
+                serverLeads = [...missing, ...serverLeads];
+              }
+            }
+          } catch {}
+
+          serverLeads.sort(
+            (a, b) =>
+              new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+          );
+
+          setLeads(serverLeads);
+          if (showToast) {
+            toast.success(`Synced ${serverLeads.length} leads successfully`);
+          }
+        } else {
+          toast.error("Could not load leads: " + data.message);
+        }
+      } catch {
+        toast.error("Network error while fetching leads");
+      } finally {
+        setLoading(false);
+      }
+    },
+    [getEffectiveToken, onLogout]
+  );
+
+  // Initial load and live background sync
   useEffect(() => {
-    fetchLeads();
+    fetchLeads(false);
+    const interval = setInterval(() => {
+      if (typeof document !== "undefined" && !document.hidden) {
+        fetchLeads(false);
+      }
+    }, 20000);
+    return () => clearInterval(interval);
   }, [fetchLeads]);
 
   const handleStatusChange = async (leadId: string, newStatus: string) => {
     try {
-      const res = await fetch("/api/modular/leads", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: leadId, status: newStatus }),
-      });
+      const token = getEffectiveToken();
+      const res = await fetch(
+        `/api/modular/leads?auth=${encodeURIComponent(token)}`,
+        {
+          method: "PATCH",
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+            "x-modular-password": token,
+          },
+          body: JSON.stringify({ id: leadId, status: newStatus }),
+        }
+      );
       const data = await res.json();
       if (data.success) {
         setLeads((prev) =>
-          prev.map((l) => (l.id === leadId ? { ...l, status: newStatus as any } : l))
+          prev.map((l) =>
+            l.id === leadId ? { ...l, status: newStatus as any } : l
+          )
         );
         toast.success(`Status updated to "${newStatus}"`);
       } else {
@@ -244,15 +381,25 @@ function ModularLeadsDashboard({ onLogout }: { onLogout: () => void }) {
     if (!activeNoteLead) return;
     setSavingNote(true);
     try {
-      const res = await fetch("/api/modular/leads", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: activeNoteLead.id, notes: noteText }),
-      });
+      const token = getEffectiveToken();
+      const res = await fetch(
+        `/api/modular/leads?auth=${encodeURIComponent(token)}`,
+        {
+          method: "PATCH",
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+            "x-modular-password": token,
+          },
+          body: JSON.stringify({ id: activeNoteLead.id, notes: noteText }),
+        }
+      );
       const data = await res.json();
       if (data.success) {
         setLeads((prev) =>
-          prev.map((l) => (l.id === activeNoteLead.id ? { ...l, notes: noteText } : l))
+          prev.map((l) =>
+            l.id === activeNoteLead.id ? { ...l, notes: noteText } : l
+          )
         );
         toast.success("Notes saved successfully");
         setActiveNoteLead(null);
@@ -270,9 +417,17 @@ function ModularLeadsDashboard({ onLogout }: { onLogout: () => void }) {
     if (!confirm(`Are you sure you want to delete lead for ${name}?`)) return;
 
     try {
-      const res = await fetch(`/api/modular/leads?id=${id}`, {
-        method: "DELETE",
-      });
+      const token = getEffectiveToken();
+      const res = await fetch(
+        `/api/modular/leads?id=${id}&auth=${encodeURIComponent(token)}`,
+        {
+          method: "DELETE",
+          credentials: "include",
+          headers: {
+            "x-modular-password": token,
+          },
+        }
+      );
       const data = await res.json();
       if (data.success) {
         setLeads((prev) => prev.filter((l) => l.id !== id));
@@ -385,7 +540,7 @@ function ModularLeadsDashboard({ onLogout }: { onLogout: () => void }) {
             <Button
               variant="outline"
               size="default"
-              onClick={fetchLeads}
+              onClick={() => fetchLeads(true)}
               disabled={loading}
               className="rounded-xl text-xs h-9 gap-1.5"
             >
@@ -399,7 +554,10 @@ function ModularLeadsDashboard({ onLogout }: { onLogout: () => void }) {
               size="default"
               className="rounded-xl text-xs h-9 gap-1.5"
             >
-              <a href="/api/modular/export" download>
+              <a
+                href={`/api/modular/export?token=${encodeURIComponent(getEffectiveToken())}`}
+                download
+              >
                 <Download className="size-3.5" />
                 <span>Export CSV</span>
               </a>

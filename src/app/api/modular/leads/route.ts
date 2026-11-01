@@ -7,16 +7,28 @@ import {
 import { DEFAULT_PASSWORDS } from "../verify/route";
 
 function isAuthorized(req: NextRequest): boolean {
-  // Check cookie
+  const envPassword = process.env.MODULAR_DATA_PASSWORD?.trim();
+  const allowed = [envPassword, ...DEFAULT_PASSWORDS].filter(Boolean);
+
+  // 1. Check cookie
   const cookie = req.cookies.get("modular_data_auth");
   if (cookie?.value === "true") return true;
 
-  // Check header
-  const authHeader = req.headers.get("x-modular-password") || req.headers.get("authorization");
+  // 2. Check query parameter (?auth=... or ?token=... or ?password=...)
+  try {
+    const url = new URL(req.url);
+    const param =
+      url.searchParams.get("auth") ||
+      url.searchParams.get("token") ||
+      url.searchParams.get("password");
+    if (param && allowed.includes(param.trim())) return true;
+  } catch {}
+
+  // 3. Check header
+  const authHeader =
+    req.headers.get("x-modular-password") || req.headers.get("authorization");
   if (authHeader) {
     const token = authHeader.replace("Bearer ", "").trim();
-    const envPassword = process.env.MODULAR_DATA_PASSWORD?.trim();
-    const allowed = [envPassword, ...DEFAULT_PASSWORDS].filter(Boolean);
     if (allowed.includes(token)) return true;
   }
 
@@ -35,6 +47,7 @@ export async function GET(req: NextRequest) {
     const leads = await getModularLeads();
     return NextResponse.json({ success: true, leads });
   } catch (err: any) {
+    console.error("GET /api/modular/leads error:", err);
     return NextResponse.json(
       { success: false, message: err.message || "Failed to fetch leads" },
       { status: 500 }
@@ -75,6 +88,7 @@ export async function PATCH(req: NextRequest) {
 
     return NextResponse.json({ success: true, lead: updated });
   } catch (err: any) {
+    console.error("PATCH /api/modular/leads error:", err);
     return NextResponse.json(
       { success: false, message: err.message || "Failed to update lead" },
       { status: 500 }
@@ -104,6 +118,7 @@ export async function DELETE(req: NextRequest) {
     const deleted = await deleteModularLead(id);
     return NextResponse.json({ success: deleted });
   } catch (err: any) {
+    console.error("DELETE /api/modular/leads error:", err);
     return NextResponse.json(
       { success: false, message: err.message || "Failed to delete lead" },
       { status: 500 }

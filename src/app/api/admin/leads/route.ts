@@ -54,7 +54,9 @@ export async function GET() {
         phoneDigits === "0000000000" ||
         phoneDigits.endsWith("0000000000") ||
         idStr.startsWith("block_") ||
-        idStr.startsWith("mem_block_");
+        idStr.startsWith("mem_block_") ||
+        lead.payment_status === "modular_inquiry" ||
+        lead.google_calendar_event_id === "modular_quotation";
 
       return !isBlocked;
     });

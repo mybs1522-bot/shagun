@@ -382,7 +382,7 @@ export default function ModularPage() {
 
             {/* Scrolling Track */}
             <div
-              className={`modular-marquee-track flex gap-3 sm:gap-4 py-1.5 ${
+              className={`modular-marquee-track flex gap-2 sm:gap-3 md:gap-4 py-1 ${
                 isMarqueePaused ? "paused" : ""
               }`}
             >
@@ -391,21 +391,21 @@ export default function ModularPage() {
                 <div
                   key={`${item.id}-${idx}`}
                   onClick={() => handleSelectDesign(item.category)}
-                  className="group relative size-28 sm:size-36 shrink-0 aspect-square rounded-2xl sm:rounded-3xl overflow-hidden border border-border/80 bg-card shadow-xs cursor-pointer transition-all hover:scale-[1.04] hover:shadow-md hover:border-primary/60"
+                  className="group relative size-20 sm:size-32 md:size-36 shrink-0 aspect-square rounded-xl sm:rounded-2xl md:rounded-3xl overflow-hidden border border-border/80 bg-card shadow-xs cursor-pointer transition-all hover:scale-[1.04] hover:shadow-md hover:border-primary/60"
                   title={`Tap to select ${item.category} in quote form`}
                 >
                   <Image
                     src={item.image}
                     alt={item.title}
                     fill
-                    sizes="(max-width: 640px) 112px, 144px"
+                    sizes="(max-width: 640px) 80px, 144px"
                     className="object-cover group-hover:scale-105 transition-transform duration-300"
                   />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/25 to-transparent flex flex-col justify-end p-2 sm:p-2.5">
-                    <span className="text-[10px] sm:text-[11px] font-bold text-white leading-tight truncate">
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/25 to-transparent flex flex-col justify-end p-1.5 sm:p-2.5">
+                    <span className="text-[9px] sm:text-[11px] font-bold text-white leading-tight truncate">
                       {item.title}
                     </span>
-                    <span className="text-[9px] sm:text-[10px] font-mono text-white/80">
+                    <span className="text-[8px] sm:text-[10px] font-mono text-white/80">
                       {item.category}
                     </span>
                   </div>
@@ -415,14 +415,33 @@ export default function ModularPage() {
           </div>
         </div>
 
-        {/* Quotation Form Card (Matching Image 1) */}
+        {/* Funnel Callout Guiding Attention Directly to Form */}
+        <div className="flex items-center justify-center pt-1">
+          <button
+            type="button"
+            onClick={() => formRef.current?.scrollIntoView({ behavior: "smooth" })}
+            className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 hover:bg-primary/15 px-3.5 py-1 text-xs font-semibold text-primary transition-all shadow-xs cursor-pointer"
+          >
+            <span>Enter Your Requirements Below</span>
+            <ArrowRight className="size-3.5 rotate-90 text-primary animate-pulse" />
+          </button>
+        </div>
+
+        {/* Quotation Form Card (Highlighted) */}
         <div
           ref={formRef}
-          className="mx-auto max-w-xl rounded-2xl sm:rounded-3xl border border-border/80 bg-card p-5 sm:p-8 shadow-xl relative overflow-hidden"
+          className="mx-auto max-w-xl rounded-2xl sm:rounded-3xl border-2 border-primary/40 dark:border-primary/50 bg-card p-5 sm:p-8 shadow-2xl shadow-blue-500/15 ring-4 ring-primary/10 dark:ring-primary/20 relative overflow-hidden transition-all"
         >
-          {/* Top Badge */}
-          <div className="absolute top-0 right-0 bg-black text-white dark:bg-white dark:text-black font-mono text-[9px] sm:text-[10px] font-bold px-3 py-1 rounded-bl-xl uppercase tracking-wider">
-            FREE FACTORY ESTIMATE
+          {/* Top Accent Gradient Bar */}
+          <div className="absolute top-0 inset-x-0 h-1 sm:h-1.5 bg-gradient-to-r from-blue-600 via-indigo-500 to-blue-600" />
+
+          {/* Top Badge with Pulsing Live Beacon */}
+          <div className="absolute top-0 right-0 bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 font-mono text-[9px] sm:text-[10px] font-bold px-3 py-1.5 rounded-bl-xl uppercase tracking-wider flex items-center gap-1.5 shadow-xs">
+            <span className="relative flex size-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full size-2 bg-emerald-500"></span>
+            </span>
+            <span>FREE FACTORY ESTIMATE</span>
           </div>
 
           {submitted ? (
@@ -467,7 +486,11 @@ export default function ModularPage() {
           ) : (
             /* Form State */
             <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-5">
-              <div className="space-y-1 pr-16 sm:pr-0">
+              <div className="space-y-1.5 pr-28 sm:pr-0">
+                <div className="inline-flex items-center gap-1.5 rounded-full bg-blue-500/10 px-2.5 py-0.5 text-[10px] font-bold text-blue-600 dark:text-blue-400">
+                  <span className="size-1.5 rounded-full bg-blue-600 dark:bg-blue-400 animate-pulse" />
+                  <span>Factory Quotation Portal</span>
+                </div>
                 <h2 className="font-heading text-lg sm:text-2xl font-bold tracking-tight text-foreground">
                   Get Instant Factory Quotation Details
                 </h2>

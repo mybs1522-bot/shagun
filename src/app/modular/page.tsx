@@ -10,7 +10,6 @@ import {
   Lock,
   Phone,
   ShieldCheck,
-  Sparkles,
   User,
 } from "lucide-react";
 import Image from "next/image";
@@ -356,74 +355,49 @@ export default function ModularPage() {
         </div>
 
         {/* 24 Scrolling Modular Designs (Rounded Corner Squares) */}
-        <div className="space-y-2.5">
-          <div className="flex items-center justify-between px-1 text-xs text-muted-foreground max-w-xl mx-auto">
-            <span className="font-semibold text-foreground flex items-center gap-1.5 text-xs sm:text-sm">
-              <Sparkles className="size-3.5 text-primary" />
-              <span>Factory Designs Showcase (24 Units)</span>
-            </span>
-            <span className="font-mono text-[10px] sm:text-[11px] text-muted-foreground">
-              Tap any to select
-            </span>
-          </div>
+        <div
+          className="relative overflow-hidden group select-none -mx-3.5 sm:-mx-6 px-1"
+          onTouchStart={() => setIsMarqueePaused(true)}
+          onTouchEnd={() => setIsMarqueePaused(false)}
+          onMouseEnter={() => setIsMarqueePaused(true)}
+          onMouseLeave={() => setIsMarqueePaused(false)}
+        >
+          {/* Left and Right Fade Overlays */}
+          <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-8 sm:w-16 bg-gradient-to-r from-background to-transparent" />
+          <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-8 sm:w-16 bg-gradient-to-l from-background to-transparent" />
 
-          {/* Marquee Track Container with Gradient Edge Fades */}
+          {/* Scrolling Track */}
           <div
-            className="relative overflow-hidden group select-none -mx-3.5 sm:-mx-6 px-1"
-            onTouchStart={() => setIsMarqueePaused(true)}
-            onTouchEnd={() => setIsMarqueePaused(false)}
-            onMouseEnter={() => setIsMarqueePaused(true)}
-            onMouseLeave={() => setIsMarqueePaused(false)}
+            className={`modular-marquee-track flex gap-2 sm:gap-3 md:gap-4 py-1 ${
+              isMarqueePaused ? "paused" : ""
+            }`}
           >
-            {/* Left and Right Fade Overlays */}
-            <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-8 sm:w-16 bg-gradient-to-r from-background to-transparent" />
-            <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-8 sm:w-16 bg-gradient-to-l from-background to-transparent" />
-
-            {/* Scrolling Track */}
-            <div
-              className={`modular-marquee-track flex gap-2 sm:gap-3 md:gap-4 py-1 ${
-                isMarqueePaused ? "paused" : ""
-              }`}
-            >
-              {/* Loop duplicated twice for seamless infinite scroll */}
-              {[...MODULAR_DESIGNS, ...MODULAR_DESIGNS].map((item, idx) => (
-                <div
-                  key={`${item.id}-${idx}`}
-                  onClick={() => handleSelectDesign(item.category)}
-                  className="group relative size-20 sm:size-32 md:size-36 shrink-0 aspect-square rounded-xl sm:rounded-2xl md:rounded-3xl overflow-hidden border border-border/80 bg-card shadow-xs cursor-pointer transition-all hover:scale-[1.04] hover:shadow-md hover:border-primary/60"
-                  title={`Tap to select ${item.category} in quote form`}
-                >
-                  <Image
-                    src={item.image}
-                    alt={item.title}
-                    fill
-                    sizes="(max-width: 640px) 80px, 144px"
-                    className="object-cover group-hover:scale-105 transition-transform duration-300"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/25 to-transparent flex flex-col justify-end p-1.5 sm:p-2.5">
-                    <span className="text-[9px] sm:text-[11px] font-bold text-white leading-tight truncate">
-                      {item.title}
-                    </span>
-                    <span className="text-[8px] sm:text-[10px] font-mono text-white/80">
-                      {item.category}
-                    </span>
-                  </div>
+            {/* Loop duplicated twice for seamless infinite scroll */}
+            {[...MODULAR_DESIGNS, ...MODULAR_DESIGNS].map((item, idx) => (
+              <div
+                key={`${item.id}-${idx}`}
+                onClick={() => handleSelectDesign(item.category)}
+                className="group relative size-20 sm:size-32 md:size-36 shrink-0 aspect-square rounded-xl sm:rounded-2xl md:rounded-3xl overflow-hidden border border-border/80 bg-card shadow-xs cursor-pointer transition-all hover:scale-[1.04] hover:shadow-md hover:border-primary/60"
+                title={`Tap to select ${item.category} in quote form`}
+              >
+                <Image
+                  src={item.image}
+                  alt={item.title}
+                  fill
+                  sizes="(max-width: 640px) 80px, 144px"
+                  className="object-cover group-hover:scale-105 transition-transform duration-300"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/25 to-transparent flex flex-col justify-end p-1.5 sm:p-2.5">
+                  <span className="text-[9px] sm:text-[11px] font-bold text-white leading-tight truncate">
+                    {item.title}
+                  </span>
+                  <span className="text-[8px] sm:text-[10px] font-mono text-white/80">
+                    {item.category}
+                  </span>
                 </div>
-              ))}
-            </div>
+              </div>
+            ))}
           </div>
-        </div>
-
-        {/* Funnel Callout Guiding Attention Directly to Form */}
-        <div className="flex items-center justify-center pt-1">
-          <button
-            type="button"
-            onClick={() => formRef.current?.scrollIntoView({ behavior: "smooth" })}
-            className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 hover:bg-primary/15 px-3.5 py-1 text-xs font-semibold text-primary transition-all shadow-xs cursor-pointer"
-          >
-            <span>Enter Your Requirements Below</span>
-            <ArrowRight className="size-3.5 rotate-90 text-primary animate-pulse" />
-          </button>
         </div>
 
         {/* Quotation Form Card (Highlighted) */}

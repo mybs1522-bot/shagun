@@ -4,6 +4,7 @@ import {
   Calendar,
   CheckCircle2,
   Clock,
+  Copy,
   Download,
   Eye,
   FileSpreadsheet,
@@ -207,6 +208,35 @@ function DataPasswordGate({ onSuccess }: { onSuccess: (token: string) => void })
       </form>
     </div>
   );
+}
+
+// ---------------------------------------------------------------------------
+// WhatsApp Message Builder
+// ---------------------------------------------------------------------------
+function getModularWhatsAppMessage(name: string, products: string[]): string {
+  const productsText =
+    products && products.length > 0
+      ? products.join(", ")
+      : "Kitchens & Wardrobes";
+
+  return [
+    `Hi *${name}*,`,
+    ``,
+    `This is from *Ar. Shagun Yadav's team* regarding your inquiry for factory-made *${productsText}*.`,
+    ``,
+    `To help us understand your space and provide you with proper assistance, could you please share:`,
+    ``,
+    `1️⃣ *Your Requirements:* Specific details of what you need (layout, preferences, or timeline)`,
+    `2️⃣ *Budget:* Approximate budget you have in mind for this work`,
+    `3️⃣ *Floor Plan / Site Images:* Any floor plans, measurements, drawings, or reference design photos (you can share them directly here on this chat)`,
+    ``,
+    `Once you share these details, our team will review everything and update you with tailored design options and factory-direct quotation details.`,
+    ``,
+    `Looking forward to assisting you! ✨`,
+    ``,
+    `Warm regards,`,
+    `*Team Ar. Shagun Yadav*`,
+  ].join("\n");
 }
 
 // ---------------------------------------------------------------------------
@@ -430,6 +460,50 @@ function ModularLeadsDashboard({
       }
     } catch {
       toast.error("Network error while deleting lead");
+    }
+  };
+
+  const handleOpenWhatsApp = (
+    phone: string,
+    name: string,
+    products: string[]
+  ) => {
+    const digits = phone.replace(/\D/g, "");
+    const phoneWithCountryCode = digits.length === 10 ? `91${digits}` : digits;
+    const msg = getModularWhatsAppMessage(name, products);
+
+    // Auto-copy message to clipboard so user can instantly Ctrl+V in case WhatsApp Web doesn't auto-fill
+    try {
+      if (typeof navigator !== "undefined" && navigator.clipboard) {
+        navigator.clipboard.writeText(msg);
+      }
+    } catch {}
+
+    const isMobile =
+      typeof navigator !== "undefined" &&
+      /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+    // On Desktop, directly open web.whatsapp.com to bypass the buggy intermediate "Continue to Web" redirect screen!
+    // On Mobile, open wa.me to launch native WhatsApp application
+    const targetUrl = isMobile
+      ? `https://wa.me/${phoneWithCountryCode}?text=${encodeURIComponent(msg)}`
+      : `https://web.whatsapp.com/send?phone=${phoneWithCountryCode}&text=${encodeURIComponent(msg)}`;
+
+    window.open(targetUrl, "_blank", "noopener,noreferrer");
+    toast.success(
+      "Opening WhatsApp! Message copied to clipboard for 1-click paste (Ctrl+V)"
+    );
+  };
+
+  const handleCopyMessage = (name: string, products: string[]) => {
+    const msg = getModularWhatsAppMessage(name, products);
+    try {
+      if (typeof navigator !== "undefined" && navigator.clipboard) {
+        navigator.clipboard.writeText(msg);
+        toast.success("WhatsApp message copied to clipboard!");
+      }
+    } catch {
+      toast.error("Failed to copy message");
     }
   };
 
@@ -672,38 +746,6 @@ function ModularLeadsDashboard({
                 </thead>
                 <tbody className="divide-y divide-grid">
                   {filteredLeads.map((lead) => {
-                    const digits = lead.phone.replace(/\D/g, "");
-                    const phoneWithCountryCode =
-                      digits.length === 10 ? `91${digits}` : digits;
-
-                    const productsText =
-                      lead.products && lead.products.length > 0
-                        ? lead.products.join(", ")
-                        : "Kitchens & Wardrobes";
-
-                    const waMessage = [
-                      `Hi *${lead.name}*,`,
-                      ``,
-                      `This is from *Ar. Shagun Yadav's team* regarding your inquiry for factory-made *${productsText}*.`,
-                      ``,
-                      `To help us understand your space and provide you with proper assistance, could you please share:`,
-                      ``,
-                      `1️⃣ *Your Requirements:* Specific details of what you need (layout, preferences, or timeline)`,
-                      `2️⃣ *Budget:* Approximate budget you have in mind for this work`,
-                      `3️⃣ *Floor Plan / Site Images:* Any floor plans, measurements, drawings, or reference design photos (you can share them directly here on this chat)`,
-                      ``,
-                      `Once you share these details, our team will review everything and update you with tailored design options and factory-direct quotation details.`,
-                      ``,
-                      `Looking forward to assisting you! ✨`,
-                      ``,
-                      `Warm regards,`,
-                      `*Team Ar. Shagun Yadav*`,
-                    ].join("\n");
-
-                    const waLink = `https://wa.me/${phoneWithCountryCode}?text=${encodeURIComponent(
-                      waMessage
-                    )}`;
-
                     return (
                       <tr
                         key={lead.id}
@@ -731,17 +773,33 @@ function ModularLeadsDashboard({
                           <div className="font-mono font-medium text-foreground">
                             {lead.phone}
                           </div>
-                          <div className="flex items-center gap-2 mt-1.5">
-                            <a
-                              href={waLink}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="inline-flex items-center gap-1 rounded-md bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-500 border border-emerald-500/20 px-2 py-0.5 text-[11px] font-medium transition-colors"
-                              title="Chat on WhatsApp"
+                          <div className="flex items-center gap-1.5 mt-1.5">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                handleOpenWhatsApp(
+                                  lead.phone,
+                                  lead.name,
+                                  lead.products
+                                )
+                              }
+                              className="inline-flex items-center gap-1 rounded-md bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-500 border border-emerald-500/20 px-2 py-0.5 text-[11px] font-medium transition-colors cursor-pointer"
+                              title="Chat on WhatsApp (Direct to Web on PC / App on Mobile)"
                             >
                               <MessageSquare className="size-3" />
                               <span>WhatsApp</span>
-                            </a>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                handleCopyMessage(lead.name, lead.products)
+                              }
+                              className="inline-flex items-center gap-1 rounded-md bg-muted hover:bg-muted/80 text-muted-foreground hover:text-foreground border border-border px-1.5 py-0.5 text-[11px] font-medium transition-colors cursor-pointer"
+                              title="Copy WhatsApp Message to Clipboard"
+                            >
+                              <Copy className="size-3" />
+                              <span className="hidden sm:inline">Copy</span>
+                            </button>
                             <a
                               href={`tel:${lead.phone}`}
                               className="inline-flex items-center gap-1 rounded-md bg-blue-500/10 hover:bg-blue-500/20 text-blue-500 border border-blue-500/20 px-2 py-0.5 text-[11px] font-medium transition-colors"

@@ -672,11 +672,36 @@ function ModularLeadsDashboard({
                 </thead>
                 <tbody className="divide-y divide-grid">
                   {filteredLeads.map((lead) => {
-                    const cleanDigits = lead.phone.replace(/\D/g, "");
-                    const waLink = `https://wa.me/91${cleanDigits}?text=${encodeURIComponent(
-                      `Hi ${lead.name}, this is from Ar. Shagun Yadav's modular studio regarding your inquiry for factory-made ${lead.products.join(
-                        ", "
-                      )}.`
+                    const digits = lead.phone.replace(/\D/g, "");
+                    const phoneWithCountryCode =
+                      digits.length === 10 ? `91${digits}` : digits;
+
+                    const productsText =
+                      lead.products && lead.products.length > 0
+                        ? lead.products.join(", ")
+                        : "Kitchens & Wardrobes";
+
+                    const waMessage = [
+                      `Hi *${lead.name}*,`,
+                      ``,
+                      `This is from *Ar. Shagun Yadav's team* regarding your inquiry for factory-made *${productsText}*.`,
+                      ``,
+                      `To help us understand your space and provide you with proper assistance, could you please share:`,
+                      ``,
+                      `1️⃣ *Your Requirements:* Specific details of what you need (layout, preferences, or timeline)`,
+                      `2️⃣ *Budget:* Approximate budget you have in mind for this work`,
+                      `3️⃣ *Floor Plan / Site Images:* Any floor plans, measurements, drawings, or reference design photos (you can share them directly here on this chat)`,
+                      ``,
+                      `Once you share these details, our team will review everything and update you with tailored design options and factory-direct quotation details.`,
+                      ``,
+                      `Looking forward to assisting you! ✨`,
+                      ``,
+                      `Warm regards,`,
+                      `*Team Ar. Shagun Yadav*`,
+                    ].join("\n");
+
+                    const waLink = `https://wa.me/${phoneWithCountryCode}?text=${encodeURIComponent(
+                      waMessage
                     )}`;
 
                     return (

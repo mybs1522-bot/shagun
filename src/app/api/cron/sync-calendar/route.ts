@@ -52,11 +52,15 @@ export async function GET(req: NextRequest) {
 
     let reconciledCount = 0;
 
-    const rzpKeyId =
+    const rawRzpKeyId =
       process.env.RAZORPAY_KEY_ID ||
       process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID ||
-      "rzp_live_U2xwN7bE4AlHuO";
-    const rzpKeySecret = process.env.RAZORPAY_KEY_SECRET;
+      "";
+    const rzpKeyId =
+      rawRzpKeyId && rawRzpKeyId !== "rzp_live_Wh4xEHePkQXqRO"
+        ? rawRzpKeyId.trim()
+        : "rzp_live_U2xwN7bE4AlHuO";
+    const rzpKeySecret = (process.env.RAZORPAY_KEY_SECRET || "").trim();
 
     if (rzpKeyId && rzpKeySecret) {
       try {

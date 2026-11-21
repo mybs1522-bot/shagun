@@ -13,11 +13,15 @@ export async function POST(req: Request) {
       );
     }
 
-    const keyId =
+    const rawKeyId =
       process.env.RAZORPAY_KEY_ID ||
       process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID ||
-      "rzp_live_U2xwN7bE4AlHuO";
-    const keySecret = process.env.RAZORPAY_KEY_SECRET;
+      "";
+    const keyId =
+      rawKeyId && rawKeyId !== "rzp_live_Wh4xEHePkQXqRO"
+        ? rawKeyId.trim()
+        : "rzp_live_U2xwN7bE4AlHuO";
+    const keySecret = (process.env.RAZORPAY_KEY_SECRET || "").trim();
 
     if (!keySecret) {
       console.error("RAZORPAY_KEY_SECRET is not configured");
@@ -33,14 +37,14 @@ export async function POST(req: Request) {
     });
 
     const options = {
-      amount: amount * 100, // Razorpay amount is in paise (lowest denomination)
+      amount: Math.round(amount * 100), // Razorpay amount is in paise (lowest denomination)
       currency,
       receipt: `rcpt_${Date.now()}`,
     };
 
     const order = await razorpay.orders.create(options);
 
-    return NextResponse.json({ orderId: order.id }, { status: 200 });
+    return NextResponse.json({ orderId: order.id, keyId }, { status: 200 });
   } catch (error: any) {
     console.error("Razorpay Order Error:", error);
     return NextResponse.json(

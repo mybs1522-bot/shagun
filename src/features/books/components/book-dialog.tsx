@@ -76,7 +76,12 @@ export function BookDialog({
         if (!res.ok) throw new Error(data.error);
 
         const options = {
-          key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || "rzp_live_U2xwN7bE4AlHuO",
+          key:
+            data.keyId ||
+            (process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID &&
+            process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID !== "rzp_live_Wh4xEHePkQXqRO"
+              ? process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID
+              : "rzp_live_U2xwN7bE4AlHuO"),
           amount: book.price * 100,
           currency: "INR",
           name: "Ar Shagun",

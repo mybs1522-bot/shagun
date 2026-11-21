@@ -13,7 +13,12 @@ export async function POST(req: NextRequest) {
     }
 
     // 1. Verify payment signature
-    const secret = process.env.RAZORPAY_KEY_SECRET || "";
+    const secret = (process.env.RAZORPAY_KEY_SECRET || "").trim();
+    if (!secret) {
+      console.error("RAZORPAY_KEY_SECRET is not configured for verification");
+      return NextResponse.json({ error: "Payment verification configuration missing" }, { status: 500 });
+    }
+
     const generated_signature = crypto
       .createHmac("sha256", secret)
       .update(razorpay_order_id + "|" + razorpay_payment_id)

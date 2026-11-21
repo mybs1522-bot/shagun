@@ -118,7 +118,7 @@ export default function BookDetailsPage() {
           .eq("id", leadId);
 
         const options = {
-          key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
+          key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || "rzp_live_U2xwN7bE4AlHuO",
           amount: book.price * 100,
           currency: "INR",
           name: "Ar Shagun",

@@ -13,9 +13,23 @@ export async function POST(req: Request) {
       );
     }
 
+    const keyId =
+      process.env.RAZORPAY_KEY_ID ||
+      process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID ||
+      "rzp_live_U2xwN7bE4AlHuO";
+    const keySecret = process.env.RAZORPAY_KEY_SECRET;
+
+    if (!keySecret) {
+      console.error("RAZORPAY_KEY_SECRET is not configured");
+      return NextResponse.json(
+        { error: "Payment gateway configuration missing" },
+        { status: 500 }
+      );
+    }
+
     const razorpay = new Razorpay({
-      key_id: process.env.RAZORPAY_KEY_ID!,
-      key_secret: process.env.RAZORPAY_KEY_SECRET!,
+      key_id: keyId,
+      key_secret: keySecret,
     });
 
     const options = {

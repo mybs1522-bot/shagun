@@ -52,11 +52,17 @@ export async function GET(req: NextRequest) {
 
     let reconciledCount = 0;
 
-    if (process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET) {
+    const rzpKeyId =
+      process.env.RAZORPAY_KEY_ID ||
+      process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID ||
+      "rzp_live_U2xwN7bE4AlHuO";
+    const rzpKeySecret = process.env.RAZORPAY_KEY_SECRET;
+
+    if (rzpKeyId && rzpKeySecret) {
       try {
         const razorpay = new Razorpay({
-          key_id: process.env.RAZORPAY_KEY_ID,
-          key_secret: process.env.RAZORPAY_KEY_SECRET,
+          key_id: rzpKeyId,
+          key_secret: rzpKeySecret,
         });
 
         // Fetch captured payments from past 24 hours
